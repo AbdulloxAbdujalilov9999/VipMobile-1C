@@ -327,6 +327,7 @@
       <button class="tab-btn" data-tab="iphone"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="20" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg> <span>iPhone</span> <span class="tab-count" id="count-iphone">0</span></button>
       <button class="tab-btn" data-tab="samsung"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="20" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg> <span>Samsung</span> <span class="tab-count" id="count-samsung">0</span></button>
       <button class="tab-btn" data-tab="other"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 8l9-5 9 5-9 5-9-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 8v9l9 5 9-5V8M12 13v9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Boshqa</span> <span class="tab-count" id="count-other">0</span></button>
+      <button class="tab-btn" data-tab="all"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/></svg> <span>Barchasi</span> <span class="tab-count" id="count-all">0</span></button>
       <div class="nav-divider"></div>
       <button class="tab-btn" data-tab="finance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2"/></svg> <span>Moliya</span></button>
     </nav>
@@ -366,6 +367,7 @@
       <section id="tab-iphone"><div id="shell-iphone"></div></section>
       <section id="tab-samsung"><div id="shell-samsung"></div></section>
       <section id="tab-other"><div id="shell-other"></div></section>
+      <section id="tab-all"><div id="shell-all"></div></section>
 
       <section id="tab-finance">
         <div id="financeLock" class="lock-wrap">
@@ -651,7 +653,8 @@
     sec: {
       iphone: {search:"", status:"all", gen:"all"},
       samsung:{search:"", status:"all", gen:"all"},
-      other:  {search:"", status:"all"}
+      other:  {search:"", status:"all"},
+      all:    {search:"", status:"all"}
     },
     editingId: null,
     editingBrand: "iphone",
@@ -665,6 +668,9 @@
   var importParsed = null;
 
   /* ====================== iPhone / Samsung color + model data ====================== */
+  var C_18 = [["Lavanda ko'k","#93a8c9"],["Shaftoli","#e8c2ab"],["Oq","#f2f2ee"],["Qora","#2e2e30"],["Yashil","#8fae94"]];
+  var C_18PRO = [["Kosmik qizil","#8a3a2e"],["Kumush","#d9d9d6"],["Chuqur ko'k","#33445c"],["Kosmik qora","#2c2c2e"]];
+  var C_18AIR = [["Osmon ko'k","#a9c6dc"],["Bulut oq","#eeeeee"],["Kosmik qora","#2c2c2e"],["Sariq oltin","#e3cda3"]];
   var C_17 = [["Lavanda","#c9c2e0"],["Shalvia yashil","#a8b89a"],["Ko'k tuman","#a9bcd6"],["Oq","#f2f2ee"],["Qora","#2e2e30"]];
   var C_17PRO = [["Kosmik To'q sariq","#c9702f"],["Kumush","#d9d9d6"],["Chuqur ko'k","#33445c"]];
   var C_17AIR = [["Osmon ko'k","#a9c6dc"],["Bulut oq","#eeeeee"],["Yengil oltin","#e3cda3"],["Kosmik qora","#2c2c2e"]];
@@ -681,9 +687,10 @@
   var C_16 = [["Qora","#2e2e30"],["Oq","#f2f2ee"],["Pushti","#f0cfd6"],["Zumrad","#7d9c9c"],["Ultramarin","#5f74c9"]];
   var C_16PRO = [["Qora Titan","#3a3a3a"],["Oq Titan","#e8e4dc"],["Tabiiy Titan","#8a8378"],["Cho'l Titan","#b6a184"]];
 
-  var IPHONE_GENERATIONS = ["17","16","15","14","13","12","11","X","SE"];
+  var IPHONE_GENERATIONS = ["18","17","16","15","14","13","12","11","X","SE"];
 
   var IPHONE_MODELS = [
+    "18 Pro Max","18 Pro","18 Air","18",
     "17 Pro Max","17 Pro","17 Air","17",
     "16 Pro Max","16 Pro","16 Plus","16",
     "15 Pro Max","15 Pro","15 Plus","15",
@@ -696,6 +703,7 @@
   ];
 
   var IPHONE_COLORS = {
+    "18 Pro Max": C_18PRO, "18 Pro": C_18PRO, "18 Air": C_18AIR, "18": C_18,
     "17 Pro Max": C_17PRO, "17 Pro": C_17PRO, "17 Air": C_17AIR, "17": C_17,
     "16 Pro Max": C_16PRO, "16 Pro": C_16PRO, "16 Plus": C_16, "16": C_16,
     "15 Pro Max": C_15PRO, "15 Pro": C_15PRO, "15 Plus": C_15, "15": C_15,
@@ -713,7 +721,7 @@
 
   var IPHONE_PARTY_PATTERNS = (function(){
     var pats = [];
-    ["17","16","15","14","13","12","11"].forEach(function(g){
+    ["18","17","16","15","14","13","12","11"].forEach(function(g){
       pats.push([new RegExp(g+"\\s*PRO\\s*MAX"), g+" Pro Max"]);
       pats.push([new RegExp(g+"\\s*MAX\\b"), g+" Pro Max"]);
       pats.push([new RegExp(g+"\\s*PRO\\b"), g+" Pro"]);
@@ -735,6 +743,41 @@
       if(IPHONE_PARTY_PATTERNS[i][0].test(m)) return IPHONE_PARTY_PATTERNS[i][1];
     }
     return "Boshqa";
+  }
+  /* Best-effort parser for legacy/imported model strings that don't use the app's
+     own "Model - Rang - Xotira - Batareya% - Region" format (e.g. raw Excel imports
+     like "14PRO PUPR128GB 82% CH/A"). Used as a fallback in the edit modal so old
+     records don't show the wrong default model/color. */
+  function parseIphoneRawModel(raw){
+    var text = (raw||"").trim();
+    var party = iphoneParty(text);
+    var model = null;
+    if(party==="SE"){
+      model = /2020/.test(text) ? "SE (2020)" : "SE (2022)";
+    } else if(IPHONE_MODELS.indexOf(party)!==-1){
+      model = party;
+    }
+
+    var battMatch = text.match(/(\d{1,3})\s?%/);
+    var batt = battMatch ? battMatch[1] : "";
+
+    var memMatch = text.match(/(\d+)\s?(GB|TB)\b/i);
+    var mem = memMatch ? (memMatch[1]+memMatch[2].toUpperCase()) : "";
+
+    var regionMatch = text.match(/\b([A-Za-z]{1,3}\/[A-Za-z]{1,3})\b/);
+    var region = regionMatch ? regionMatch[1].toUpperCase() : "";
+
+    var stripped = text;
+    if(memMatch) stripped = stripped.replace(memMatch[0], " ");
+    if(battMatch) stripped = stripped.replace(battMatch[0], " ");
+    if(regionMatch) stripped = stripped.replace(regionMatch[0], " ");
+    stripped = stripped.replace(/\b\d{1,2}\s?(PRO\s?MAX|MAX|PRO|PLUS|MINI|AIR)?\b/ig, " ");
+    stripped = stripped.replace(/\bXS\s?MAX\b|\bXS\b|\bXR\b|\bX\b|\bSE\b/ig, " ");
+    stripped = stripped.replace(/\b(NEW+|USED|LUX)\b/ig, " ");
+    stripped = stripped.replace(/\bE\+*\b|\bA\+*\b/ig, " ");
+    stripped = stripped.replace(/-+/g, " ").replace(/\s+/g, " ").trim();
+
+    return {model: model, color: stripped, mem: mem, batt: batt, region: region};
   }
   function iphoneGeneration(party){
     if(party==="Boshqa") return "Boshqa";
@@ -1076,6 +1119,14 @@
     } else if(brand==="samsung"){
       genChips = '<div class="chip-row" id="genChips-samsung" style="margin-top:8px"></div>';
     }
+    var statusChips = brand==="all" ? "" :
+        '<div class="chip-row" id="chips-'+brand+'">'+
+          '<button class="chip active" data-status="all">Hammasi</button>'+
+          '<button class="chip" data-status="stock">Sotilmagan</button>'+
+          '<button class="chip" data-status="sold">Sotilgan</button>'+
+          '<button class="chip" data-status="lent">Band</button>'+
+          '<button class="chip" data-status="lost">Yo\'qolgan</button>'+
+        '</div>';
     return ''+
       '<div class="toolbar">'+
         '<button class="btn primary lg" id="addBtn-'+brand+'">+ Yangi telefon qo\'shish</button>'+
@@ -1085,13 +1136,7 @@
           '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'+
           '<input type="text" id="search-'+brand+'" placeholder="Qidirish: model, ism yoki IMEI…">'+
         '</div>'+
-        '<div class="chip-row" id="chips-'+brand+'">'+
-          '<button class="chip active" data-status="all">Hammasi</button>'+
-          '<button class="chip" data-status="stock">Sotilmagan</button>'+
-          '<button class="chip" data-status="sold">Sotilgan</button>'+
-          '<button class="chip" data-status="lent">Band</button>'+
-          '<button class="chip" data-status="lost">Yo\'qolgan</button>'+
-        '</div>'+
+        statusChips+
         genChips+
       '</div>'+
       '<div class="table-wrap">'+
@@ -1116,7 +1161,7 @@
 
   function filteredPhones(brand){
     var st = state.sec[brand];
-    var list = state.phones.filter(function(p){ return p.brand===brand; });
+    var list = brand==="all" ? state.phones.slice() : state.phones.filter(function(p){ return p.brand===brand; });
     if(st.status!=="all") list = list.filter(function(p){ return p.status===st.status; });
     if(brand==="iphone" && st.gen && st.gen!=="all"){
       list = list.filter(function(p){ return iphoneGeneration(iphoneParty(p.model))===st.gen; });
@@ -1151,21 +1196,26 @@
   }
 
   function renderRow(p, i, brand){
+    var rowBrand = brand==="all" ? (p.brand||"other") : brand;
+    var brandTag = brand==="all" ? '<span class="brandtag '+rowBrand+'" style="margin-right:6px;">'+esc(BRAND_LABEL[rowBrand]||rowBrand)+'</span>' : '';
     var showSoldBtn = p.status!=="sold";
+    var showReturnBtn = p.status==="sold";
+    var returnedTag = (p.status!=="sold" && p.returnedAt) ? ' <span style="color:var(--gold); font-weight:600; font-size:11px;">(qaytarilgan)</span>' : '';
     return '<tr>'+
       '<td class="rownum">'+(i+1)+'</td>'+
       '<td>'+
-        '<div class="cell-model">'+esc(p.model||"Nomsiz")+'</div>'+
+        '<div class="cell-model">'+brandTag+esc(p.model||"Nomsiz")+'</div>'+
         '<div class="cell-sub">'+esc(p.source||"")+'</div>'+
       '</td>'+
       '<td class="mono">'+esc(p.imei||"—")+'</td>'+
       '<td class="mono price-tag">'+(p.buyPrice!=null?fmtMoney(p.buyPrice):"—")+'</td>'+
       '<td><span class="badge '+p.status+'">'+statusLabel(p.status)+'</span></td>'+
       '<td>'+esc(fmtDate(p.buyDate))+'</td>'+
-      '<td>'+(p.buyer?'<div class="buyer-name">'+esc(p.buyer)+'</div>':'<span class="cell-sub">—</span>')+(p.sellDate?'<div class="cell-sub">'+esc(fmtDate(p.sellDate))+'</div>':'')+'</td>'+
+      '<td>'+(p.buyer?'<div class="buyer-name">'+esc(p.buyer)+returnedTag+'</div>':'<span class="cell-sub">—</span>')+(p.sellDate?'<div class="cell-sub">'+esc(fmtDate(p.sellDate))+'</div>':'')+'</td>'+
       '<td><div class="row-actions">'+
-        '<button class="btn sm ghost" data-edit="'+p.id+'" data-brand="'+brand+'">Tahrir</button>'+
+        '<button class="btn sm ghost" data-edit="'+p.id+'" data-brand="'+rowBrand+'">Tahrir</button>'+
         (showSoldBtn ? '<button class="btn sm ghost" data-sold="'+p.id+'" style="color:var(--success)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 12l6 6L20 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg> Sotildi</button>' : '')+
+        (showReturnBtn ? '<button class="btn sm ghost" data-return="'+p.id+'" style="color:var(--gold)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 12H4M4 12l6-6M4 12l6 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Qaytarib olindi</button>' : '')+
       '</div></td>'+
     '</tr>';
   }
@@ -1259,23 +1309,29 @@
     tbody.querySelectorAll("[data-sold]").forEach(function(btn){
       btn.onclick = function(){ openSoldModal(btn.getAttribute("data-sold")); };
     });
+    tbody.querySelectorAll("[data-return]").forEach(function(btn){
+      btn.onclick = function(){ openReturnConfirm(btn.getAttribute("data-return")); };
+    });
 
     var countEl = document.getElementById("count-"+brand);
-    if(countEl) countEl.textContent = state.phones.filter(function(p){return p.brand===brand;}).length;
+    if(countEl) countEl.textContent = brand==="all" ? state.phones.length : state.phones.filter(function(p){return p.brand===brand;}).length;
   }
 
   function bindSection(brand){
     document.getElementById("search-"+brand).addEventListener("input", function(e){
       state.sec[brand].search = e.target.value; renderSection(brand);
     });
-    document.getElementById("chips-"+brand).addEventListener("click", function(e){
-      var chip = e.target.closest(".chip");
-      if(!chip) return;
-      this.querySelectorAll(".chip").forEach(function(c){ c.classList.remove("active"); });
-      chip.classList.add("active");
-      state.sec[brand].status = chip.getAttribute("data-status");
-      renderSection(brand);
-    });
+    var chipsRow = document.getElementById("chips-"+brand);
+    if(chipsRow){
+      chipsRow.addEventListener("click", function(e){
+        var chip = e.target.closest(".chip");
+        if(!chip) return;
+        this.querySelectorAll(".chip").forEach(function(c){ c.classList.remove("active"); });
+        chip.classList.add("active");
+        state.sec[brand].status = chip.getAttribute("data-status");
+        renderSection(brand);
+      });
+    }
     var genRow = document.getElementById("genChips-"+brand);
     if(genRow){
       genRow.addEventListener("click", function(e){
@@ -1287,7 +1343,7 @@
         renderSection(brand);
       });
     }
-    document.getElementById("addBtn-"+brand).addEventListener("click", function(){ openPhoneModal(null, brand); });
+    document.getElementById("addBtn-"+brand).addEventListener("click", function(){ openPhoneModal(null, brand==="all"?"iphone":brand); });
   }
 
   /* ====================== dashboard (public, no money figures) ====================== */
@@ -1435,13 +1491,14 @@
   function renderAll(){
     renderDashboard();
     BRANDS.forEach(renderSection);
+    renderSection("all");
     renderFinance();
   }
 
   /* ====================== tabs ====================== */
   function switchTab(tab){
     document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===tab); });
-    ["dashboard","iphone","samsung","other","finance"].forEach(function(t){
+    ["dashboard","iphone","samsung","other","all","finance"].forEach(function(t){
       document.getElementById("tab-"+t).classList.toggle("active", t===tab);
     });
     if(tab!=="finance" && state.financeUnlocked){
@@ -1594,19 +1651,27 @@
       var normModel = parts[0] ? parts[0].trim() : "";
       if(IPHONE_MODELS.indexOf(normModel)!==-1){
         populateIphoneModels(normModel);
-        var mem="256GB", batt="", region="", color="";
+        var mem="256GB", batt="", region="", colorParts=[];
         parts.slice(1).forEach(function(seg){
           seg = seg.trim();
           if(!seg) return;
-          if(/^\d+\s?(GB|TB)$/i.test(seg)) mem = seg;
-          else if(/^\d+%$/.test(seg)) batt = seg.replace("%","");
-          else if(seg.indexOf("/")!==-1) region = seg;
-          else color = seg;
+          if(/^\d+\s?(GB|TB)$/i.test(seg)) mem = seg.replace(/\s+/g,"").toUpperCase();
+          else if(/^\d+\s?%$/.test(seg)) batt = seg.replace(/\s?%/,"");
+          else if(/^[A-Za-z0-9]{1,4}\/[A-Za-z0-9]{1,4}$/.test(seg)) region = seg;
+          else colorParts.push(seg);
         });
-        document.getElementById("f_ip_color").value = color;
+        document.getElementById("f_ip_color").value = colorParts.join(" ");
         document.getElementById("f_ip_memory").value = mem;
         document.getElementById("f_ip_battery").value = batt;
         document.getElementById("f_ip_region").value = region;
+      } else {
+        // legacy/imported model string without the app's own separator format — best-effort parse
+        var guess = parseIphoneRawModel(p.model);
+        if(guess.model) populateIphoneModels(guess.model);
+        document.getElementById("f_ip_color").value = guess.color;
+        if(guess.mem) document.getElementById("f_ip_memory").value = guess.mem;
+        if(guess.batt) document.getElementById("f_ip_battery").value = guess.batt;
+        if(guess.region) document.getElementById("f_ip_region").value = guess.region;
       }
     }
 
@@ -1684,17 +1749,32 @@
 
   /* ====================== delete confirm ====================== */
   var confirmAction = null;
+  function setConfirmButton(label, isDanger){
+    var btn = document.getElementById("confirmOk");
+    btn.textContent = label;
+    btn.className = "btn" + (isDanger ? " danger" : " primary");
+  }
   function openConfirm(id){
     state.deleteId = id;
     confirmAction = "delete-phone";
     var p = state.phones.find(function(x){return x.id===id;});
     document.getElementById("confirmTitle").textContent = "O'chirishni tasdiqlang";
     document.getElementById("confirmText").textContent = "\""+((p&&p.model)||"Ushbu yozuv")+"\" o'chiriladi. Bu amalni qaytarib bo'lmaydi.";
+    setConfirmButton("O'chirish", true);
     document.getElementById("confirmOverlay").classList.add("open");
   }
   function closeConfirm(){
     document.getElementById("confirmOverlay").classList.remove("open");
     state.deleteId = null; confirmAction = null;
+  }
+  function openReturnConfirm(id){
+    state.deleteId = id;
+    confirmAction = "return-phone";
+    var p = state.phones.find(function(x){return x.id===id;});
+    document.getElementById("confirmTitle").textContent = "Qaytarib olishni tasdiqlang";
+    document.getElementById("confirmText").textContent = "\""+((p&&p.model)||"Ushbu telefon")+"\" qaytarib olinadi va sotilmagan telefonlar ro'yxatiga qaytadi. Xaridor va sotilgan narx ma'lumotlari tarix sifatida saqlanib qoladi.";
+    setConfirmButton("Ha, qaytarib olindi", false);
+    document.getElementById("confirmOverlay").classList.add("open");
   }
   async function doConfirm(){
     if(confirmAction==="delete-phone"){
@@ -1708,6 +1788,16 @@
     } else if(confirmAction==="new-month"){
       closeConfirm();
       await runNewMonth();
+    } else if(confirmAction==="return-phone"){
+      if(!state.deleteId || !phonesCol) return;
+      try{
+        var fields = {status:"stock", returnedAt: new Date().toISOString(), updatedAt: new Date().toISOString()};
+        await phonesCol.doc(state.deleteId).update(fields);
+        var prior = state.phones.find(function(x){return x.id===state.deleteId;}) || {};
+        syncToSheet("upsert", state.deleteId, Object.assign({}, prior, fields));
+        toast("Qaytarib olindi, sotilmagan ro'yxatiga qaytdi");
+      }catch(e){ toast("Xatolik: "+(e.code||e.message), true); }
+      closeConfirm();
     }
   }
   document.getElementById("confirmOk").addEventListener("click", doConfirm);
@@ -1838,6 +1928,7 @@
     document.getElementById("confirmTitle").textContent = "Yangi oyni boshlash";
     document.getElementById("confirmText").textContent =
       "Avval barcha "+state.phones.length+" ta yozuv Excel faylga yuklab olinadi. Keyin "+soldCount+" ta SOTILGAN yozuv bazadan o'chiriladi. "+keepCount+" ta (omborda/band/yo'qolgan) telefon saqlanib qoladi. Davom etasizmi?";
+    setConfirmButton("Boshlash", true);
     document.getElementById("confirmOverlay").classList.add("open");
   }
   document.getElementById("newMonthBtn").addEventListener("click", openNewMonthConfirm);
@@ -2166,7 +2257,9 @@
   BRANDS.forEach(function(b){
     document.getElementById("shell-"+b).innerHTML = sectionShellHTML(b);
   });
+  document.getElementById("shell-all").innerHTML = sectionShellHTML("all");
   BRANDS.forEach(bindSection);
+  bindSection("all");
   populateIphoneModels(null);
 
   initFirebase();
