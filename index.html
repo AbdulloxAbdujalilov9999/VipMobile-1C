@@ -406,6 +406,7 @@
       <button class="tab-btn" data-tab="samsung"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="20" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg> <span>Samsung</span> <span class="tab-count" id="count-samsung">0</span></button>
       <button class="tab-btn" data-tab="other"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 8l9-5 9 5-9 5-9-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 8v9l9 5 9-5V8M12 13v9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Boshqa</span> <span class="tab-count" id="count-other">0</span></button>
       <button class="tab-btn" data-tab="all"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/></svg> <span>Barchasi</span> <span class="tab-count" id="count-all">0</span></button>
+      <button class="tab-btn" data-tab="new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.5 6.5L21 11l-6.5 2.5L12 20l-2.5-6.5L3 11l6.5-2.5L12 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Yangi telefonlar</span> <span class="tab-count" id="count-new">0</span></button>
       <div class="nav-divider"></div>
       <button class="tab-btn" data-tab="finance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2"/></svg> <span>Moliya</span></button>
     </nav>
@@ -454,6 +455,7 @@
       <section id="tab-samsung"><div id="shell-samsung"></div></section>
       <section id="tab-other"><div id="shell-other"></div></section>
       <section id="tab-all"><div id="shell-all"></div></section>
+      <section id="tab-new"><div id="shell-new"></div></section>
 
       <section id="tab-finance">
         <div id="financeLock" class="lock-wrap">
@@ -495,9 +497,11 @@
                     </div>
                   </div>
                   <button class="btn lg danger" id="newMonthBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Yangi oy boshlash</button>
+                  <button class="btn lg danger" id="wipeAllBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Platformani to'liq tozalash</button>
                 </div>
                 <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
-                  "Yangi oy boshlash" — barcha ma'lumotlarni Excel fayl qilib yuklab beradi, so'ng <b style="color:var(--ink)">sotilgan</b> telefonlarni bazadan o'chiradi. Sotilmagan/band/yo'qolgan telefonlar saqlanib qoladi.
+                  "Yangi oy boshlash" — barcha ma'lumotlarni Excel fayl qilib yuklab beradi, so'ng <b style="color:var(--ink)">sotilgan</b> telefonlarni bazadan o'chiradi. Sotilmagan/band/yo'qolgan telefonlar saqlanib qoladi.<br>
+                  "Platformani to'liq tozalash" — <b style="color:var(--danger)">barcha</b> telefonlarni (sotilgan/sotilmagan/band/yo'qolgan, hammasi) o'chiradi, avval ularni Excel fayl qilib avtomatik yuklab beradi. Faqat yangi fayllardan qaytadan boshlamoqchi bo'lsangiz ishlating.
                 </p>
               </div>
               <div class="card">
@@ -516,10 +520,12 @@
                   <button class="btn lg" id="openSheetBtn" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M14 3h7v7M10 14L21 3M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Sheetni ochish</button>
                   <button class="btn lg" id="sheetFullSyncBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M17 4v4h-4M7 20v-4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span class="btn-label">Sheetga to'liq sinxronlash</span></button>
                   <button class="btn lg" id="sheetCheckBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> <span class="btn-label">Sheetdan tekshirish</span></button>
+                  <button class="btn lg ghost" id="copySheetSyncBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> <span class="btn-label">Copy SheetSync</span></button>
                 </div>
                 <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
                   Har bir qo'shish/o'zgartirish/sotildi avtomatik ravishda Google Sheetga yoziladi. Foyda ko'rsatilmaydi — faqat sotib olingan va sotilgan narxlar. "Yangi oy boshlash" Sheetdagi yozuvlarni o'chirmaydi — Sheet doimiy tarixiy jurnal bo'lib qoladi.<br>
-                  "Sheetdan tekshirish" — agar Sheetga telefonni to'g'ridan-to'g'ri qo'lda qo'shgan bo'lsangiz, shu tugma uni platformaga olib keladi (bu avtomatik, har ~90 soniyada ham tekshiriladi).
+                  "Sheetdan tekshirish" — agar Sheetga telefonni to'g'ridan-to'g'ri qo'lda qo'shgan bo'lsangiz, shu tugma uni platformaga olib keladi (bu avtomatik, har ~90 soniyada ham tekshiriladi).<br>
+                  "Copy SheetSync" — Apps Script kodining eng so'nggi versiyasini nusxalaydi, shunchaki Apps Script muharririga joylashtirib qayta deploy qilsangiz bo'ldi.
                 </p>
               </div>
             </div>
@@ -609,6 +615,10 @@
         <div class="field"><label>Qutisi bormi?</label>
           <select id="f_imeiBox"><option value="0">Yo'q</option><option value="1">Bor</option></select>
         </div>
+      </div>
+      <div class="field full" style="display:flex; align-items:center; gap:9px; margin-top:12px;">
+        <input type="checkbox" id="f_isNew" style="width:17px; height:17px; accent-color:var(--accent); cursor:pointer; flex:none;">
+        <label style="margin:0; font-weight:600; color:var(--ink); cursor:pointer;" for="f_isNew">Yangi — quticha ochilmagan, ishlatilmagan telefon</label>
       </div>
 
       <div class="form-section-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="20" r="1.4" fill="currentColor"/><circle cx="18" cy="20" r="1.4" fill="currentColor"/><path d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 7H6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Kimdan sotib olindi</div>
@@ -720,6 +730,22 @@
   </div>
 </div>
 
+<div class="overlay" id="wipeOverlay">
+  <div class="modal small">
+    <button class="modal-close" id="closeWipeModal">&times;</button>
+    <h2 style="color:var(--danger);">Platformani to'liq tozalash</h2>
+    <div class="modal-sub">
+      <b id="wipeCount" style="color:var(--ink)"></b> ta telefon butunlay o'chiriladi. Bu amalni qaytarib bo'lmaydi. Avval ular Excel fayl qilib avtomatik yuklab olinadi.<br><br>
+      Davom etish uchun quyidagi maydonga <b style="color:var(--danger)">OCHIRISH</b> deb yozing:
+    </div>
+    <div class="field"><input type="text" id="wipeConfirmInput" placeholder="OCHIRISH" autocomplete="off"></div>
+    <div class="form-actions">
+      <button type="button" class="btn lg" id="cancelWipeBtn">Bekor qilish</button>
+      <button type="button" class="btn lg danger" id="confirmWipeBtn" disabled>Hammasini o'chirish</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="monthOverlay">
   <div class="modal small">
     <button class="modal-close" id="closeMonthModal">&times;</button>
@@ -785,6 +811,423 @@
   var SHEET_SYNC_URL = "https://script.google.com/macros/s/AKfycbwtFxuwdC8ejgPUEtyy4d20aIGsZlfBl6675Mn_Wptv3LVF3PkYzsD11OsvKY2D93FHKw/exec";
 
   var BRANDS = ["iphone","samsung","other"];
+  var VIRTUAL_BRANDS = ["all","new"];
+  var SHEETSYNC_GS_SOURCE = `/**
+ * VipMobile -> Google Sheet sync endpoint.
+ *
+ * Tabs: iPhone / Samsung / Boshqa (one per brand) + Telefonlar (every
+ * currently "Band" phone, across all brands, in one place).
+ *
+ * Each brand tab is grouped by exact model ("17 Pro Max", "S24 Ultra", ...),
+ * newest-first, with a blank row between groups. Within a tab, rows are in
+ * three sections top-to-bottom: not-sold, then Band, then Sotilgan at the
+ * very bottom (this matches the app's own ordering - tell me if you'd
+ * rather have Sotilgan at the top instead, it's a one-line change).
+ *
+ * Columns A (ID) and B (Status) are internal bookkeeping and stay hidden -
+ * everything from column C on is the real visible data, starting with
+ * "Kimdan olindi".
+ *
+ * SETUP / REDEPLOY: same as before - paste this whole file in, run
+ * setupSheet once, then Deploy -> Manage deployments -> edit -> New
+ * version -> Deploy (keeps the same URL).
+ */
+
+var SHEET_DEFS = [
+  { key: 'iphone',  name: 'iPhone',  color: '#2A3B8F' },
+  { key: 'samsung', name: 'Samsung', color: '#96682B' },
+  { key: 'other',   name: 'Boshqa',  color: '#3F4A5A' }
+];
+var BAND_SHEET_NAME = 'Telefonlar';
+var BAND_SHEET_COLOR = '#4C6B5A';
+
+// Column C onward - what the user actually sees. A (ID) and B (Status) are hidden bookkeeping.
+var HEADERS = [
+  'ID', 'Status',
+  "Kimdan olindi", 'Uning raqami', 'Telefon nomi', 'Karobka', 'IMEI',
+  "Sotib olingan sana", "Sotib olingan vaqti", 'Sotilgan sana', 'Sotilgan vaqti',
+  "Sotib olingan narx", 'Sotilgan narx',
+  'Kimga sotildi', 'Xaridor raqami'
+];
+var DATE_FORMAT = 'dd/mm/yy';
+
+/* ====================== iPhone party/generation grouping (ported from the app) ====================== */
+var IPHONE_PARTY_PATTERNS = (function () {
+  var pats = [];
+  ['18', '17', '16', '15', '14', '13', '12', '11'].forEach(function (g) {
+    pats.push([new RegExp(g + '\\s*PRO\\s*MAX'), g + ' Pro Max']);
+    pats.push([new RegExp(g + '\\s*MAX\\b'), g + ' Pro Max']);
+    pats.push([new RegExp(g + '\\s*PRO\\b'), g + ' Pro']);
+    pats.push([new RegExp(g + '\\s*PLUS\\b'), g + ' Plus']);
+    pats.push([new RegExp(g + '\\s*MINI\\b'), g + ' Mini']);
+    pats.push([new RegExp(g + '\\s*AIR\\b'), g + ' Air']);
+    pats.push([new RegExp('\\b' + g + '\\b'), g]);
+  });
+  pats.push([/XS\s*MAX/, 'XS Max']);
+  pats.push([/\bXS\b/, 'XS']);
+  pats.push([/\bXR\b/, 'XR']);
+  pats.push([/\bX\b/, 'X']);
+  pats.push([/\bSE\b/, 'SE']);
+  return pats;
+})();
+function iphoneParty_(model) {
+  var m = (model || '').toUpperCase();
+  for (var i = 0; i < IPHONE_PARTY_PATTERNS.length; i++) {
+    if (IPHONE_PARTY_PATTERNS[i][0].test(m)) return IPHONE_PARTY_PATTERNS[i][1];
+  }
+  return 'Boshqa';
+}
+var IPHONE_GENERATIONS = ['18', '17', '16', '15', '14', '13', '12', '11', 'X', 'SE'];
+var PARTY_SUFFIX_ORDER = ['Pro Max', 'Pro', 'Plus', '', 'Mini', 'Air'];
+function iphoneGeneration_(party) {
+  if (party === 'Boshqa') return 'Boshqa';
+  var m = party.match(/^(\d+)/);
+  if (m) return m[1];
+  if (/^X/.test(party)) return 'X';
+  if (/^SE/.test(party)) return 'SE';
+  return 'Boshqa';
+}
+function iphonePartySortKey_(party) {
+  var gen = iphoneGeneration_(party);
+  var genIdx = IPHONE_GENERATIONS.indexOf(gen);
+  if (genIdx < 0) genIdx = 999;
+  var suffix = party.replace(/^\d+\s*/, '').replace(/^(X[RS]?|SE)\s*/, '');
+  var subIdx = PARTY_SUFFIX_ORDER.indexOf(suffix);
+  if (subIdx < 0) subIdx = 50;
+  return genIdx * 100 + subIdx;
+}
+
+/* ====================== Samsung party/generation grouping (ported from the app) ====================== */
+function samsungGenAndParty_(model) {
+  var m = (model || '').toUpperCase();
+  var mm = m.match(/\b(S|A|M)\s?(\d{1,2})/);
+  if (mm) {
+    var gen = mm[1] + mm[2];
+    var suffix = '';
+    if (/ULTRA/.test(m)) suffix = ' Ultra';
+    else if (/\+|PLUS/.test(m)) suffix = ' Plus';
+    else if (/\bFE\b/.test(m)) suffix = ' FE';
+    return { gen: gen, party: gen + suffix };
+  }
+  var nm = m.match(/NOTE\s?(\d{1,3})?/);
+  if (nm) {
+    var gen2 = 'Note' + (nm[1] || '');
+    return { gen: gen2, party: gen2 };
+  }
+  var zm = m.match(/Z\s?(FOLD|FLIP)\s?(\d*)/);
+  if (zm) {
+    var gen3 = 'Z ' + zm[1].charAt(0) + zm[1].slice(1).toLowerCase();
+    return { gen: gen3, party: gen3 + (zm[2] ? ' ' + zm[2] : '') };
+  }
+  if (/\bTAB/.test(m)) return { gen: 'Tab', party: 'Tab' };
+  return { gen: 'Boshqa', party: 'Boshqa' };
+}
+function samsungGenSortKey_(gen) {
+  var m = gen.match(/^([SAM])(\d+)$/);
+  if (m) {
+    var prefixOrder = { S: 0, A: 2, M: 3 }[m[1]];
+    return prefixOrder * 1000 - parseInt(m[2], 10);
+  }
+  if (/^Note/.test(gen)) return 500 - (parseInt(gen.replace(/\D/g, ''), 10) || 0);
+  if (/^Z Fold/.test(gen)) return 700;
+  if (/^Z Flip/.test(gen)) return 750;
+  if (gen === 'Tab') return 800;
+  return 9999;
+}
+var SAMSUNG_SUFFIX_ORDER = ['Ultra', 'Plus', '', 'FE'];
+function samsungPartySortKey_(party, gen) {
+  var suffix = party.slice(gen.length);
+  var idx = SAMSUNG_SUFFIX_ORDER.indexOf(suffix);
+  return idx < 0 ? 50 : idx;
+}
+
+/* ====================== sheet plumbing ====================== */
+/** Only formats a BRAND NEW sheet. An existing sheet is left alone - re-applying
+ *  header/column/tab formatting on every single sync was the main reason syncs
+ *  felt slow (each sync touches 4 sheets x ~6 formatting calls = ~24 extra API
+ *  calls that have nothing to do with the actual data). Run setupSheet() by hand
+ *  any time you want formatting refreshed on existing sheets. */
+function getOrCreateSheet_(name, color) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    try { formatSheet_(sh, color); } catch (e) { Logger.log('format ' + name + ' failed: ' + e); }
+  }
+  return sh;
+}
+
+/** Re-applies header row + column formatting WITHOUT touching data rows below. Safe to call anytime. */
+function formatSheet_(sh, color) {
+  function safely_(fn, label) {
+    try { fn(); } catch (e) { Logger.log('formatSheet_ step failed (' + label + '): ' + e); }
+  }
+
+  var headerRange = sh.getRange(1, 1, 1, HEADERS.length);
+  headerRange.setValues([HEADERS]); // must succeed - this IS the header row
+
+  safely_(function () {
+    headerRange.setFontWeight('bold').setBackground(color).setFontColor('#ffffff')
+      .setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(10);
+  }, 'header style');
+  safely_(function () { sh.setRowHeight(1, 32); }, 'row height');
+  safely_(function () { sh.setFrozenRows(1); }, 'freeze header');
+
+  safely_(function () {
+    var widths = [40, 60, 150, 110, 260, 70, 170, 100, 70, 100, 70, 100, 100, 170, 120];
+    for (var i = 0; i < widths.length; i++) sh.setColumnWidth(i + 1, widths[i]);
+  }, 'column widths');
+  safely_(function () { sh.hideColumns(1, 2); }, 'hide id/status columns');
+
+  safely_(function () {
+    var dataRows = Math.max(1, sh.getMaxRows() - 1);
+    sh.getRange(2, 8, dataRows, 1).setNumberFormat(DATE_FORMAT);  // bought date
+    sh.getRange(2, 10, dataRows, 1).setNumberFormat(DATE_FORMAT); // sold date
+    sh.getRange(2, 12, dataRows, 2).setNumberFormat('"$"#,##0');  // bought/sold rate
+  }, 'number formats');
+
+  safely_(function () { sh.setTabColor(color); }, 'tab color');
+}
+
+function rowFor_(rec) {
+  return [
+    rec.id, rec.status || 'stock',
+    rec.source || '', rec.sourcePhone || '', rec.model || '',
+    rec.imeiBox ? 'Bor' : "Yo'q", rec.imei || '',
+    rec.buyDate || '', rec.buyTime || '', rec.sellDate || '', rec.sellTime || '',
+    rec.buyPrice != null ? rec.buyPrice : '', rec.sellPrice != null ? rec.sellPrice : '',
+    rec.buyer || '', rec.buyerPhone || ''
+  ];
+}
+function blankRow_() { return HEADERS.map(function () { return ''; }); }
+function dividerRow_(label) { var r = blankRow_(); r[2] = label; return r; }
+
+function dateBack_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return v || '';
+}
+function byBuyDateDesc_(a, b) {
+  if (!a.buyDate && !b.buyDate) return 0;
+  if (!a.buyDate) return 1;
+  if (!b.buyDate) return -1;
+  if (a.buyDate !== b.buyDate) return a.buyDate < b.buyDate ? 1 : -1;
+  return 0;
+}
+
+/** Reads back every real data row (skips blank/divider rows) as record objects. */
+function readSheetRecords_(sh) {
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  var values = sh.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+  var out = [];
+  values.forEach(function (row) {
+    var id = row[0];
+    if (!id) return;
+    out.push({
+      id: id, status: row[1] || 'stock',
+      source: row[2] || '', sourcePhone: row[3] || '', model: row[4] || '',
+      imeiBox: row[5] === 'Bor', imei: row[6] || '',
+      buyDate: dateBack_(row[7]), buyTime: row[8] || '',
+      sellDate: dateBack_(row[9]), sellTime: row[10] || '',
+      buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
+      buyer: row[13] || '', buyerPhone: row[14] || ''
+    });
+  });
+  return out;
+}
+
+/** Builds the grouped/tiered/spaced row list for one brand's sheet. partyFns is null for Boshqa (no grouping). */
+function buildGroupedRows_(items, partyFns) {
+  var out = [];
+  function emit(list) {
+    if (!partyFns) {
+      list.slice().sort(byBuyDateDesc_).forEach(function (it) { out.push(rowFor_(it)); });
+      return;
+    }
+    var groups = {};
+    list.forEach(function (it) {
+      var party = partyFns.party(it.model);
+      (groups[party] = groups[party] || []).push(it);
+    });
+    var names = Object.keys(groups).sort(function (a, b) { return partyFns.sortKey(a) - partyFns.sortKey(b); });
+    names.forEach(function (party, idx) {
+      if (idx > 0) out.push(blankRow_());
+      var rows = groups[party].slice().sort(byBuyDateDesc_);
+      rows.forEach(function (it) { out.push(rowFor_(it)); });
+    });
+  }
+
+  var notSold = items.filter(function (it) { return it.status !== 'sold' && it.status !== 'lent'; });
+  var band = items.filter(function (it) { return it.status === 'lent'; });
+  var sold = items.filter(function (it) { return it.status === 'sold'; });
+
+  emit(notSold);
+  if (band.length) { out.push(dividerRow_('BAND (' + band.length + ' ta)')); emit(band); }
+  if (sold.length) { out.push(dividerRow_('SOTILGAN (' + sold.length + ' ta)')); emit(sold); }
+  return out;
+}
+
+function writeBody_(sh, rows) {
+  var lastRow = sh.getLastRow();
+  if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, HEADERS.length).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
+}
+
+var PARTY_FNS = {
+  iphone: { party: iphoneParty_, sortKey: iphonePartySortKey_ },
+  samsung: { party: function (m) { return samsungGenAndParty_(m).party; }, sortKey: function (party) {
+    var gen = samsungGenAndParty_(party).gen;
+    return samsungGenSortKey_(gen) * 10 + samsungPartySortKey_(party, gen);
+  } }
+};
+
+/** Re-reads every brand sheet + the given change, then rewrites all 4 tabs. This is the single
+ *  source of truth for ordering/grouping, so every write (single or bulk) goes through it. */
+function applyChangeAndRewriteAll_(mutate) {
+  var sheets = {};
+  var master = {}; // id -> record
+  SHEET_DEFS.forEach(function (def) {
+    var sh = getOrCreateSheet_(def.name, def.color);
+    sheets[def.key] = sh;
+    readSheetRecords_(sh).forEach(function (rec) { rec.brand = def.key; master[rec.id] = rec; });
+  });
+
+  mutate(master); // caller adds/updates/removes records in place
+
+  var buckets = { iphone: [], samsung: [], other: [] };
+  var bandAll = [];
+  Object.keys(master).forEach(function (id) {
+    var rec = master[id];
+    if (!rec) return;
+    var brand = buckets[rec.brand] ? rec.brand : 'other';
+    buckets[brand].push(rec);
+    if (rec.status === 'lent') bandAll.push(rec);
+  });
+
+  SHEET_DEFS.forEach(function (def) {
+    var rows = buildGroupedRows_(buckets[def.key], PARTY_FNS[def.key] || null);
+    writeBody_(sheets[def.key], rows);
+  });
+
+  var bandSheet = getOrCreateSheet_(BAND_SHEET_NAME, BAND_SHEET_COLOR);
+  var bandRows = buildGroupedRows_(bandAll, null);
+  writeBody_(bandSheet, bandRows);
+}
+
+/** Run this once from the editor (and again any time you want formatting refreshed -
+ *  e.g. after changing SHEET_DEFS colors, or to fix a column width you changed by hand).
+ *  Never touches data rows. */
+function setupSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  SHEET_DEFS.forEach(function (def) {
+    var sh = getOrCreateSheet_(def.name, def.color);
+    try { formatSheet_(sh, def.color); } catch (e) { Logger.log('format ' + def.name + ' failed: ' + e); }
+  });
+  var bandSh = getOrCreateSheet_(BAND_SHEET_NAME, BAND_SHEET_COLOR);
+  try { formatSheet_(bandSh, BAND_SHEET_COLOR); } catch (e) { Logger.log('format band failed: ' + e); }
+  ss.getSheets().forEach(function (s) {
+    var keep = SHEET_DEFS.some(function (d) { return d.name === s.getName(); }) || s.getName() === BAND_SHEET_NAME;
+    if (!keep && s.getLastRow() === 0) {
+      try { ss.deleteSheet(s); } catch (e) { /* can't delete the only sheet left; ignore */ }
+    }
+  });
+  SpreadsheetApp.flush();
+}
+
+/* ====================== HTTP entry points ====================== */
+function doPost(e) {
+  try {
+    var body = JSON.parse(e.postData.contents);
+    var action = body.action;
+
+    if (action === 'upsert') {
+      applyChangeAndRewriteAll_(function (master) {
+        var d = body.data || {};
+        master[body.id] = {
+          id: body.id, brand: d.brand || 'other', status: d.status || 'stock',
+          source: d.source || '', sourcePhone: d.sourcePhone || '', model: d.model || '',
+          imeiBox: !!d.imeiBox, imei: d.imei || '',
+          buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
+          buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
+          buyer: d.buyer || '', buyerPhone: d.buyerPhone || ''
+        };
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true }));
+    }
+
+    if (action === 'delete') {
+      applyChangeAndRewriteAll_(function (master) { delete master[body.id]; });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true }));
+    }
+
+    if (action === 'bulkUpsert') {
+      applyChangeAndRewriteAll_(function (master) {
+        Object.keys(master).forEach(function (id) { delete master[id]; }); // bulk payload is authoritative
+        (body.rows || []).forEach(function (r) {
+          var d = r.data || {};
+          master[r.id] = {
+            id: r.id, brand: d.brand || 'other', status: d.status || 'stock',
+            source: d.source || '', sourcePhone: d.sourcePhone || '', model: d.model || '',
+            imeiBox: !!d.imeiBox, imei: d.imei || '',
+            buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
+            buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
+            buyer: d.buyer || '', buyerPhone: d.buyerPhone || ''
+          };
+        });
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, count: (body.rows || []).length }));
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'unknown action' }));
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: String(err), stack: err.stack || '' }));
+  }
+}
+
+/** Returns every tracked record (id-having rows, tagged with brand) plus any
+ *  "unidentified" rows - real data rows that were typed straight into the Sheet
+ *  by hand and so have no ID yet in the hidden column A. The app uses this to:
+ *   (a) pull a frozen archived month's totals (Moliya > Oylar), and
+ *   (b) two-way sync: find rows added directly in the Sheet, create a matching
+ *       Firestore record for each, and let the next normal sync fold them in
+ *       (which also wipes the old ID-less row so there's no duplicate). */
+function exportAllData_() {
+  var records = [];
+  var unidentified = [];
+  SHEET_DEFS.forEach(function (def) {
+    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(def.name);
+    if (!sh) return;
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return;
+    var values = sh.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+    values.forEach(function (row, idx) {
+      var id = row[0];
+      var model = row[4];
+      if (!id && !model) return; // blank/divider row
+      var rec = {
+        id: id || null, status: row[1] || 'stock', brand: def.key,
+        source: row[2] || '', sourcePhone: row[3] || '', model: model || '',
+        imeiBox: row[5] === 'Bor', imei: row[6] || '',
+        buyDate: dateBack_(row[7]), buyTime: row[8] || '',
+        sellDate: dateBack_(row[9]), sellTime: row[10] || '',
+        buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
+        buyer: row[13] || '', buyerPhone: row[14] || ''
+      };
+      if (id) { records.push(rec); }
+      else { rec.sheetName = def.name; rec.sheetRow = idx + 2; unidentified.push(rec); }
+    });
+  });
+  var out = { ok: true, records: records, unidentified: unidentified, exportedAt: new Date().toISOString() };
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  var action = e && e.parameter && e.parameter.action;
+  if (action === 'export') return exportAllData_();
+  return ContentService.createTextOutput('VipMobile sync endpoint is running.');
+}
+`;
+
   var BRAND_LABEL = {iphone:"iPhone", samsung:"Samsung", other:"Boshqa"};
 
   var state = {
@@ -794,7 +1237,8 @@
       iphone: {search:"", status:"all", gen:"all"},
       samsung:{search:"", status:"all", gen:"all"},
       other:  {search:"", status:"all"},
-      all:    {search:"", status:"all"}
+      all:    {search:"", status:"all"},
+      new:    {search:"", status:"all"}
     },
     editingId: null,
     editingBrand: "iphone",
@@ -1028,6 +1472,13 @@
     var m = parseInt(p[1],10)-1;
     return parseInt(p[2],10)+" "+(MONTHS[m]||p[1])+" "+p[0];
   }
+  /* Formats a full ISO timestamp (createdAt/soldAt) as "HH:MM". Returns "" if missing/invalid. */
+  function fmtTime(iso){
+    if(!iso) return "";
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return "";
+    return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  }
   function monthKey(iso){
     if(!iso) return null;
     var p = iso.split("-");
@@ -1137,6 +1588,14 @@
   /* ====================== Google Sheet sync ====================== */
   function activeSheetSyncUrl(){ return state.sheetSyncUrl || SHEET_SYNC_URL || ""; }
   function sheetSyncReady(){ return !!activeSheetSyncUrl(); }
+  /* Sheet gets plain local HH:MM strings derived from createdAt/soldAt - Firestore itself
+     only ever stores the real ISO timestamps, this is just a display-friendly copy for the Sheet. */
+  function enrichForSheet(data){
+    var d = Object.assign({}, data||{});
+    d.buyTime = fmtTime(d.createdAt);
+    d.sellTime = fmtTime(d.soldAt);
+    return d;
+  }
   function syncToSheet(action, id, data){
     if(!sheetSyncReady()) return;
     try{
@@ -1144,7 +1603,7 @@
         method: "POST",
         mode: "no-cors",
         headers: {"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({action: action, id: id, data: data||{}})
+        body: JSON.stringify({action: action, id: id, data: enrichForSheet(data)})
       }).catch(function(){});
     }catch(e){ /* best-effort, never block the UI on sync failure */ }
   }
@@ -1178,7 +1637,7 @@
         method: "POST",
         mode: "no-cors",
         headers: {"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({action:"bulkUpsert", rows: records.map(function(p){ return {id:p.id, data:p}; })})
+        body: JSON.stringify({action:"bulkUpsert", rows: records.map(function(p){ return {id:p.id, data:enrichForSheet(p)}; })})
       });
       return true;
     }catch(e){ return false; }
@@ -1231,6 +1690,14 @@
     if(btn && !silent){ btn.disabled = false; setBtnLabel(btn, "Sheetdan tekshirish"); }
   }
   document.getElementById("sheetCheckBtn").addEventListener("click", function(){ checkSheetForNewRows(false); });
+  document.getElementById("copySheetSyncBtn").addEventListener("click", async function(){
+    try{
+      await navigator.clipboard.writeText(SHEETSYNC_GS_SOURCE);
+      toast("SheetSync kodi nusxalandi");
+    }catch(e){
+      toast("Nusxalashda xatolik: "+e.message, true);
+    }
+  });
 
   /* ====================== firebase init ====================== */
   function setStatus(mode, label){
@@ -1368,7 +1835,7 @@
     } else if(brand==="samsung"){
       genChips = '<div class="chip-row" id="genChips-samsung" style="margin-top:8px"></div>';
     }
-    var statusChips = brand==="all" ? "" :
+    var statusChips = VIRTUAL_BRANDS.indexOf(brand)!==-1 ? "" :
         '<div class="chip-row" id="chips-'+brand+'">'+
           '<button class="chip active" data-status="all">Hammasi</button>'+
           '<button class="chip" data-status="stock">Sotilmagan</button>'+
@@ -1410,7 +1877,10 @@
 
   function filteredPhones(brand){
     var st = state.sec[brand];
-    var list = brand==="all" ? state.phones.slice() : state.phones.filter(function(p){ return p.brand===brand; });
+    var list;
+    if(brand==="all") list = state.phones.slice();
+    else if(brand==="new") list = state.phones.filter(function(p){ return !!p.isNew; });
+    else list = state.phones.filter(function(p){ return p.brand===brand; });
     if(st.status!=="all") list = list.filter(function(p){ return p.status===st.status; });
     if(brand==="iphone" && st.gen && st.gen!=="all"){
       list = list.filter(function(p){ return iphoneGeneration(iphoneParty(p.model))===st.gen; });
@@ -1445,8 +1915,8 @@
   }
 
   function renderRow(p, i, brand){
-    var rowBrand = brand==="all" ? (p.brand||"other") : brand;
-    var brandTag = brand==="all" ? '<span class="brandtag '+rowBrand+'" style="margin-right:6px;">'+esc(BRAND_LABEL[rowBrand]||rowBrand)+'</span>' : '';
+    var rowBrand = VIRTUAL_BRANDS.indexOf(brand)!==-1 ? (p.brand||"other") : brand;
+    var brandTag = VIRTUAL_BRANDS.indexOf(brand)!==-1 ? '<span class="brandtag '+rowBrand+'" style="margin-right:6px;">'+esc(BRAND_LABEL[rowBrand]||rowBrand)+'</span>' : '';
     var showSoldBtn = p.status!=="sold";
     var showReturnBtn = p.status==="sold";
     var showBandBtn = p.status==="stock";
@@ -1460,8 +1930,8 @@
       '<td class="mono">'+esc(p.imei||"—")+'</td>'+
       '<td class="mono price-tag">'+(p.buyPrice!=null?fmtMoney(p.buyPrice):"—")+'</td>'+
       '<td><span class="badge '+p.status+'">'+statusLabel(p.status)+'</span></td>'+
-      '<td>'+esc(fmtDate(p.buyDate))+'</td>'+
-      '<td>'+(p.buyer?'<div class="buyer-name">'+esc(p.buyer)+returnedTag+'</div>':'<span class="cell-sub">—</span>')+(p.sellDate?'<div class="cell-sub">'+esc(fmtDate(p.sellDate))+'</div>':'')+'</td>'+
+      '<td>'+esc(fmtDate(p.buyDate))+(fmtTime(p.createdAt)?'<div class="cell-sub">'+fmtTime(p.createdAt)+'</div>':'')+'</td>'+
+      '<td>'+(p.buyer?'<div class="buyer-name">'+esc(p.buyer)+returnedTag+'</div>':'<span class="cell-sub">—</span>')+(p.sellDate?'<div class="cell-sub">'+esc(fmtDate(p.sellDate))+(fmtTime(p.soldAt)?' · '+fmtTime(p.soldAt):'')+'</div>':'')+'</td>'+
       '<td><div class="row-actions">'+
         '<button class="btn sm ghost" data-edit="'+p.id+'" data-brand="'+rowBrand+'">Tahrir</button>'+
         (showSoldBtn ? '<button class="btn sm ghost" data-sold="'+p.id+'" style="color:var(--success)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 12l6 6L20 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg> Sotildi</button>' : '')+
@@ -1568,7 +2038,11 @@
     });
 
     var countEl = document.getElementById("count-"+brand);
-    if(countEl) countEl.textContent = brand==="all" ? state.phones.length : state.phones.filter(function(p){return p.brand===brand;}).length;
+    if(countEl){
+      if(brand==="all") countEl.textContent = state.phones.length;
+      else if(brand==="new") countEl.textContent = state.phones.filter(function(p){return !!p.isNew;}).length;
+      else countEl.textContent = state.phones.filter(function(p){return p.brand===brand;}).length;
+    }
   }
 
   function bindSection(brand){
@@ -1597,7 +2071,7 @@
         renderSection(brand);
       });
     }
-    document.getElementById("addBtn-"+brand).addEventListener("click", function(){ openPhoneModal(null, brand==="all"?"iphone":brand); });
+    document.getElementById("addBtn-"+brand).addEventListener("click", function(){ openPhoneModal(null, VIRTUAL_BRANDS.indexOf(brand)!==-1?"iphone":brand); });
   }
 
   /* ====================== dashboard (public, no money figures) ====================== */
@@ -1897,14 +2371,14 @@
   function renderAll(){
     renderDashboard();
     BRANDS.forEach(renderSection);
-    renderSection("all");
+    VIRTUAL_BRANDS.forEach(renderSection);
     renderFinance();
   }
 
   /* ====================== tabs ====================== */
   function switchTab(tab){
     document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===tab); });
-    ["dashboard","iphone","samsung","other","all","finance"].forEach(function(t){
+    ["dashboard","iphone","samsung","other","all","new","finance"].forEach(function(t){
       document.getElementById("tab-"+t).classList.toggle("active", t===tab);
     });
     if(tab!=="finance" && state.financeUnlocked){
@@ -2049,6 +2523,7 @@
     document.getElementById("f_status").value = p ? (p.status||"stock") : "stock";
     document.getElementById("f_imei").value = p ? (p.imei||"") : "";
     document.getElementById("f_imeiBox").value = p && p.imeiBox ? "1" : "0";
+    document.getElementById("f_isNew").checked = !!(p && p.isNew);
     document.getElementById("f_source").value = p ? (p.source||"") : "";
     document.getElementById("f_sourcePhone").value = p ? (p.sourcePhone||"") : "";
     document.getElementById("f_buyDate").value = p ? (p.buyDate||"") : new Date().toISOString().slice(0,10);
@@ -2136,6 +2611,7 @@
       imei: document.getElementById("f_imei").value.trim(),
       status: document.getElementById("f_status").value,
       imeiBox: document.getElementById("f_imeiBox").value === "1",
+      isNew: document.getElementById("f_isNew").checked,
       source: document.getElementById("f_source").value.trim(),
       sourcePhone: document.getElementById("f_sourcePhone").value.trim(),
       buyDate: document.getElementById("f_buyDate").value,
@@ -2285,6 +2761,7 @@
         sellPrice: num(document.getElementById("s_sellPrice").value),
         sellDate: document.getElementById("s_sellDate").value,
         sellNote: document.getElementById("s_note").value.trim(),
+        soldAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       await phonesCol.doc(soldTargetId).update(soldFields);
@@ -2302,13 +2779,13 @@
   function exportRows(brand){
     var list = brand==="all" ? state.phones.slice() : state.phones.filter(function(p){ return p.brand===brand; });
     list.sort(function(a,b){ return (b.seq||0)-(a.seq||0); });
-    var header = ["Model","Brend","IMEI","Holati","Kimdan olindi","Tel(sotuvchi)","Sotib olingan sana","Sotib olingan narx",
-      "Kimga sotildi","Tel(xaridor)","Sotilgan sana","Sotilgan narx","Foyda","Izoh"];
+    var header = ["Model","Brend","IMEI","Holati","Kimdan olindi","Tel(sotuvchi)","Sotib olingan sana","Sotib olingan vaqti","Sotib olingan narx",
+      "Kimga sotildi","Tel(xaridor)","Sotilgan sana","Sotilgan vaqti","Sotilgan narx","Foyda","Izoh"];
     var rows = list.map(function(p){
       var pr = profitOf(p);
       return [p.model||"", BRAND_LABEL[p.brand]||"", p.imei||"", statusLabel(p.status), p.source||"", p.sourcePhone||"",
-        p.buyDate||"", p.buyPrice!=null?p.buyPrice:"", p.buyer||"", p.buyerPhone||"",
-        p.sellDate||"", p.sellPrice!=null?p.sellPrice:"", pr!=null?pr:"", p.note||""];
+        p.buyDate||"", fmtTime(p.createdAt), p.buyPrice!=null?p.buyPrice:"", p.buyer||"", p.buyerPhone||"",
+        p.sellDate||"", fmtTime(p.soldAt), p.sellPrice!=null?p.sellPrice:"", pr!=null?pr:"", p.note||""];
     });
     return {header:header, rows:rows};
   }
@@ -2434,6 +2911,48 @@
       toast("O'chirishda xatolik: "+(e.code||e.message), true);
     }
   }
+
+  /* ====================== full wipe (replace all data) ====================== */
+  function openWipeModal(){
+    document.getElementById("wipeCount").textContent = state.phones.length;
+    document.getElementById("wipeConfirmInput").value = "";
+    document.getElementById("confirmWipeBtn").disabled = true;
+    document.getElementById("wipeOverlay").classList.add("open");
+  }
+  function closeWipeModal(){
+    document.getElementById("wipeOverlay").classList.remove("open");
+  }
+  document.getElementById("wipeAllBtn").addEventListener("click", openWipeModal);
+  document.getElementById("closeWipeModal").addEventListener("click", closeWipeModal);
+  document.getElementById("cancelWipeBtn").addEventListener("click", closeWipeModal);
+  document.getElementById("wipeOverlay").addEventListener("click", function(e){ if(e.target.id==="wipeOverlay") closeWipeModal(); });
+  document.getElementById("wipeConfirmInput").addEventListener("input", function(){
+    document.getElementById("confirmWipeBtn").disabled = this.value.trim().toUpperCase() !== "OCHIRISH";
+  });
+  document.getElementById("confirmWipeBtn").addEventListener("click", async function(){
+    var btn = this;
+    btn.disabled = true; setBtnLabel(btn, "Zaxiralanmoqda…");
+    var d = new Date();
+    var stamp = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    var blob = xlsxBlobFor("all");
+    var ok = await saveFile("ombor-tozalashdan-oldin-"+stamp+".xlsx", blob);
+    if(!ok){ toast("Zaxiralashda xatolik, o'chirish bekor qilindi", true); btn.disabled=false; setBtnLabel(btn,"Hammasini o'chirish"); return; }
+    var all = state.phones.slice();
+    if(!all.length){ toast("O'chiriladigan yozuv yo'q"); closeWipeModal(); btn.disabled=false; setBtnLabel(btn,"Hammasini o'chirish"); return; }
+    setBtnLabel(btn, "O'chirilmoqda…");
+    try{
+      for(var i=0;i<all.length;i+=400){
+        var batch = db.batch();
+        all.slice(i,i+400).forEach(function(p){ batch.delete(phonesCol.doc(p.id)); });
+        await batch.commit();
+      }
+      toast(all.length+" ta yozuv o'chirildi. Endi yangi fayllarni yuklashingiz mumkin.");
+      closeWipeModal();
+    }catch(e){
+      toast("O'chirishda xatolik: "+(e.code||e.message), true);
+    }
+    btn.disabled = false; setBtnLabel(btn, "Hammasini o'chirish");
+  });
 
   /* ====================== notes ====================== */
   async function saveNotes(){
@@ -2587,6 +3106,7 @@
       if(!rec.model && !rec.imei) continue;
       rec.brand = classifyBrand(rec.model);
       rec.status = rec.sellPrice!=null ? "sold" : ((rec.buyer||rec.sellDate) ? "lent" : "stock");
+      rec.isNew = /NEW/i.test(rec.model);
       records.push(rec);
     }
     return records;
@@ -2713,16 +3233,18 @@
   document.getElementById("filenameOverlay").addEventListener("click", function(e){ if(e.target.id==="filenameOverlay"){ this.classList.remove("open"); state.pendingExport=null; } });
 
   document.addEventListener("keydown", function(e){
-    if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); }
+    if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); closeWipeModal(); closeMonthModal(); }
   });
 
   /* ====================== boot ====================== */
   BRANDS.forEach(function(b){
     document.getElementById("shell-"+b).innerHTML = sectionShellHTML(b);
   });
-  document.getElementById("shell-all").innerHTML = sectionShellHTML("all");
+  VIRTUAL_BRANDS.forEach(function(b){
+    document.getElementById("shell-"+b).innerHTML = sectionShellHTML(b);
+  });
   BRANDS.forEach(bindSection);
-  bindSection("all");
+  VIRTUAL_BRANDS.forEach(bindSection);
   populateIphoneModels(null);
 
   initFirebase();
