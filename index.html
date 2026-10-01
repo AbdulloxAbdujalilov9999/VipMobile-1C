@@ -409,6 +409,10 @@
       <div class="nav-divider"></div>
       <button class="tab-btn" data-tab="finance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2"/></svg> <span>Moliya</span></button>
     </nav>
+    <button class="btn sm" id="sidebarSyncBtn" style="width:100%; margin:0 0 10px; justify-content:center; overflow:hidden;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none;"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M17 4v4h-4M7 20v-4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="btn-label" style="overflow:hidden; text-overflow:ellipsis;">Sinxronlash</span>
+    </button>
     <div class="sidebar-foot">
       <div class="status-wrap"><span class="status-dot" id="statusDot"></span><span id="statusText">Ulanmoqda…</span></div>
       <div class="status-wrap" id="loggedInAs" style="margin-top:6px; justify-content:space-between;">
@@ -503,8 +507,13 @@
                   <label>Apps Script Web App havolasi</label>
                   <input type="text" id="sheetUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
                 </div>
+                <div class="field" style="margin-bottom:12px;">
+                  <label>Google Sheet havolasi</label>
+                  <input type="text" id="sheetLinkInput" placeholder="https://docs.google.com/spreadsheets/d/…">
+                </div>
                 <div class="data-actions">
                   <button class="btn lg primary" id="sheetUrlSaveBtn">Havolani saqlash</button>
+                  <button class="btn lg" id="openSheetBtn" disabled><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M14 3h7v7M10 14L21 3M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Sheetni ochish</button>
                   <button class="btn lg" id="sheetFullSyncBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M17 4v4h-4M7 20v-4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span class="btn-label">Sheetga to'liq sinxronlash</span></button>
                   <button class="btn lg" id="sheetCheckBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> <span class="btn-label">Sheetdan tekshirish</span></button>
                 </div>
@@ -793,6 +802,7 @@
     financeUnlocked: false,
     pendingExport: null,
     sheetSyncUrl: "",
+    sheetLinkUrl: "",
     financeMonths: [],
     financeView: {mode:"live"},
     editingMonthId: null
@@ -1143,8 +1153,12 @@
     var bannerEl = document.getElementById("sheetSyncBanner");
     var btn = document.getElementById("sheetFullSyncBtn");
     var input = document.getElementById("sheetUrlInput");
+    var linkInput = document.getElementById("sheetLinkInput");
+    var openBtn = document.getElementById("openSheetBtn");
     if(!statusEl) return;
     if(input && document.activeElement !== input) input.value = state.sheetSyncUrl || "";
+    if(linkInput && document.activeElement !== linkInput) linkInput.value = state.sheetLinkUrl || "";
+    if(openBtn) openBtn.disabled = !state.sheetLinkUrl;
     if(sheetSyncReady()){
       statusEl.textContent = "ulangan";
       bannerEl.hidden = true;
@@ -1327,6 +1341,7 @@
     sheetSyncDoc.onSnapshot(function(snap){
       var d = snap.exists ? snap.data() : null;
       state.sheetSyncUrl = (d && d.url) || "";
+      state.sheetLinkUrl = (d && d.sheetUrl) || "";
       renderSheetSyncBanner();
     });
 
@@ -2361,16 +2376,22 @@
   document.getElementById("sheetUrlSaveBtn").addEventListener("click", async function(){
     if(!sheetSyncDoc){ toast("Firebase ulanmagan", true); return; }
     var val = document.getElementById("sheetUrlInput").value.trim();
-    if(val && val.indexOf("http")!==0){ toast("Havola noto'g'ri ko'rinadi", true); return; }
+    var sheetVal = document.getElementById("sheetLinkInput").value.trim();
+    if(val && val.indexOf("http")!==0){ toast("Apps Script havolasi noto'g'ri ko'rinadi", true); return; }
+    if(sheetVal && sheetVal.indexOf("http")!==0){ toast("Sheet havolasi noto'g'ri ko'rinadi", true); return; }
     var btn = this;
     btn.disabled = true;
     try{
-      await sheetSyncDoc.set({url: val, updatedAt: new Date().toISOString()});
-      toast(val ? "Havola saqlandi" : "Havola tozalandi");
+      await sheetSyncDoc.set({url: val, sheetUrl: sheetVal, updatedAt: new Date().toISOString()});
+      toast("Havolalar saqlandi");
     }catch(e){
       toast("Saqlashda xatolik: "+(e.code||e.message), true);
     }
     btn.disabled = false;
+  });
+  document.getElementById("openSheetBtn").addEventListener("click", function(){
+    if(!state.sheetLinkUrl) return;
+    window.open(state.sheetLinkUrl, "_blank", "noopener");
   });
   document.getElementById("sheetFullSyncBtn").addEventListener("click", async function(){
     if(!sheetSyncReady()){ toast("Avval Sheet ulanishi kerak", true); return; }
@@ -2379,6 +2400,19 @@
     var ok = await bulkSyncToSheet(state.phones);
     toast(ok ? (state.phones.length+" ta yozuv Sheetga yuborildi") : "Sinxronlashda xatolik", !ok);
     btn.disabled = false; setBtnLabel(btn, "Sheetga to'liq sinxronlash");
+  });
+  document.getElementById("sidebarSyncBtn").addEventListener("click", async function(){
+    if(!sheetSyncReady()){ toast("Avval Moliya > Google Sheet havolasini ulang", true); return; }
+    var btn = this;
+    btn.disabled = true; setBtnLabel(btn, "Tekshirilmoqda…");
+    try{
+      await checkSheetForNewRows(true);
+      var ok = await bulkSyncToSheet(state.phones);
+      toast(ok ? "Sinxronlash tekshirildi — ikkala tomon ham yangilandi" : "Sinxronlashda xatolik", !ok);
+    }catch(e){
+      toast("Xatolik: "+e.message, true);
+    }
+    btn.disabled = false; setBtnLabel(btn, "Sinxronlashni tekshirish");
   });
 
   async function runNewMonth(){
