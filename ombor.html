@@ -115,6 +115,8 @@
     background:var(--surface); border:1px solid var(--border); border-radius:14px;
     padding:16px 16px 14px; box-shadow:var(--shadow);
   }
+  .kpi-clickable{ cursor:pointer; transition:border-color .15s; }
+  .kpi-clickable:hover{ border-color:var(--accent); }
   .kpi-label{ font-size:12px; color:var(--ink-dim); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .kpi-value{ font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; margin-top:6px; font-variant-numeric:tabular-nums; }
   .kpi-value.success{ color:var(--success); }
@@ -164,6 +166,8 @@
   .rank-name{ font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%; }
   .rank-meta{ color:var(--ink-dim); font-size:12px; }
   .rank-val{ font-family:'IBM Plex Mono',monospace; font-weight:600; }
+  .month-row:hover{ color:var(--accent); }
+  .month-row.active .rank-name{ color:var(--gold); }
 
   .recent-item{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); font-size:13px; min-width:0; }
   .recent-item:last-child{ border-bottom:none; }
@@ -229,7 +233,8 @@
 
   /* ---------- excel-style table ---------- */
   .table-wrap{ background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:var(--shadow); }
-  table{ width:100%; min-width:980px; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.phone-table{ min-width:980px; table-layout:fixed; }
   thead th{
     text-align:left; font-size:11.5px; font-weight:800; color:var(--ink-dim);
     padding:9px 12px; border:1px solid var(--border); user-select:none; white-space:nowrap;
@@ -237,14 +242,14 @@
     overflow:hidden; text-overflow:ellipsis;
   }
   thead th .arrow{ opacity:.6; font-size:10px; margin-left:3px; }
-  thead th.rownum{ width:38px; }
-  thead th:nth-child(2){ width:24%; }
-  thead th:nth-child(3){ width:200px; }
-  thead th:nth-child(4){ width:85px; }
-  thead th:nth-child(5){ width:110px; }
-  thead th:nth-child(6){ width:100px; }
-  thead th:nth-child(7){ width:16%; }
-  thead th:last-child{ width:175px; }
+  .phone-table thead th.rownum{ width:38px; }
+  .phone-table thead th:nth-child(2){ width:24%; }
+  .phone-table thead th:nth-child(3){ width:200px; }
+  .phone-table thead th:nth-child(4){ width:85px; }
+  .phone-table thead th:nth-child(5){ width:110px; }
+  .phone-table thead th:nth-child(6){ width:100px; }
+  .phone-table thead th:nth-child(7){ width:16%; }
+  .phone-table thead th:last-child{ width:175px; }
   thead th.rownum, tbody td.rownum{ text-align:center; width:38px; color:var(--ink-faint); background:var(--surface-2); }
   tbody td{ padding:8px 12px; border:1px solid var(--border); vertical-align:top; }
   tbody tr:nth-child(even){ background:rgba(255,255,255,.015); }
@@ -346,7 +351,26 @@
   [hidden]{ display:none!important; }
 </style>
 
-<div class="app">
+<div id="loginScreen" class="lock-wrap" style="position:fixed; inset:0; z-index:300; background:var(--bg); min-height:100vh;" hidden>
+  <div class="lock-card">
+    <div class="brand-mark" style="margin:0 auto 14px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <rect x="6" y="2" width="12" height="20" rx="2.5" stroke="white" stroke-width="1.8"/>
+        <circle cx="12" cy="18" r="1" fill="white"/>
+      </svg>
+    </div>
+    <h2>VipMobile</h2>
+    <p>Davom etish uchun hisobingizga kiring.</p>
+    <form id="loginForm">
+      <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" required>
+      <input type="password" id="loginPassword" placeholder="Parol" autocomplete="current-password" required>
+      <div id="loginError" style="color:var(--danger); font-size:12.5px; margin:-4px 0 12px; display:none;"></div>
+      <button type="submit" class="btn primary lg" style="width:100%" id="loginSubmitBtn">Kirish</button>
+    </form>
+  </div>
+</div>
+
+<div class="app" id="appRoot" hidden>
   <div class="mobile-topbar">
     <button class="menu-btn" id="menuOpenBtn" aria-label="Menyu">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -387,6 +411,10 @@
     </nav>
     <div class="sidebar-foot">
       <div class="status-wrap"><span class="status-dot" id="statusDot"></span><span id="statusText">Ulanmoqda…</span></div>
+      <div class="status-wrap" id="loggedInAs" style="margin-top:6px; justify-content:space-between;">
+        <span id="loggedInEmail" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+        <button class="btn sm ghost" id="logoutBtn" style="padding:3px 9px; font-size:11px;">Chiqish</button>
+      </div>
     </div>
   </aside>
 
@@ -437,6 +465,7 @@
           <div class="page-intro">
             <h1>Moliyaviy hisobot</h1>
           </div>
+          <div id="monthViewBanner" hidden class="setup-banner" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;"></div>
           <div class="kpi-grid" id="finKpiGrid"></div>
           <div class="panel-grid">
             <div>
@@ -477,9 +506,11 @@
                 <div class="data-actions">
                   <button class="btn lg primary" id="sheetUrlSaveBtn">Havolani saqlash</button>
                   <button class="btn lg" id="sheetFullSyncBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M17 4v4h-4M7 20v-4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span class="btn-label">Sheetga to'liq sinxronlash</span></button>
+                  <button class="btn lg" id="sheetCheckBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> <span class="btn-label">Sheetdan tekshirish</span></button>
                 </div>
                 <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
-                  Har bir qo'shish/o'zgartirish/sotildi avtomatik ravishda Google Sheetga yoziladi. Foyda ko'rsatilmaydi — faqat sotib olingan va sotilgan narxlar. "Yangi oy boshlash" Sheetdagi yozuvlarni o'chirmaydi — Sheet doimiy tarixiy jurnal bo'lib qoladi.
+                  Har bir qo'shish/o'zgartirish/sotildi avtomatik ravishda Google Sheetga yoziladi. Foyda ko'rsatilmaydi — faqat sotib olingan va sotilgan narxlar. "Yangi oy boshlash" Sheetdagi yozuvlarni o'chirmaydi — Sheet doimiy tarixiy jurnal bo'lib qoladi.<br>
+                  "Sheetdan tekshirish" — agar Sheetga telefonni to'g'ridan-to'g'ri qo'lda qo'shgan bo'lsangiz, shu tugma uni platformaga olib keladi (bu avtomatik, har ~90 soniyada ham tekshiriladi).
                 </p>
               </div>
             </div>
@@ -491,6 +522,16 @@
               <div class="card">
                 <h3>Kimlar ko'p sotib oladi</h3>
                 <ul class="rank-list" id="topBuyers"></ul>
+              </div>
+              <div class="card">
+                <h3>Oylar <span class="hint">arxiv</span></h3>
+                <div id="monthsList"></div>
+                <div class="data-actions" style="margin-top:12px;">
+                  <button class="btn sm" id="addMonthBtn">+ Oy qo'shish</button>
+                </div>
+                <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
+                  Har oy "Yangi oy boshlash"dan oldin Google Sheet faylidan nusxa oling (Fayl → Nusxa yarating), unga yangi Apps Script joylashtiring va shu havolalarni shu yerga qo'shing — o'sha oyning to'liq hisobotini istalgan vaqt qayta ko'rishingiz mumkin bo'ladi.
+                </p>
               </div>
             </div>
           </div>
@@ -670,6 +711,42 @@
   </div>
 </div>
 
+<div class="overlay" id="monthOverlay">
+  <div class="modal small">
+    <button class="modal-close" id="closeMonthModal">&times;</button>
+    <h2 id="monthModalTitle">Oy qo'shish</h2>
+    <div class="modal-sub">Oy yakunlanganda Google Sheet faylidan nusxa oling, unga yangi Apps Script joylashtirib deploy qiling, so'ng ikkala havolani shu yerga joylashtiring.</div>
+    <form id="monthForm">
+      <div class="field"><label>Oy nomi</label><input type="text" id="m_label" placeholder="Masalan: Sentyabr 2026" required></div>
+      <div class="field"><label>Apps Script Web App havolasi</label><input type="text" id="m_scriptUrl" placeholder="https://script.google.com/macros/s/…/exec" required></div>
+      <div class="field"><label>Google Sheet havolasi (ixtiyoriy)</label><input type="text" id="m_sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…"></div>
+      <div class="form-actions">
+        <button type="button" class="btn lg danger ghost" id="deleteMonthBtn" hidden style="margin-right:auto; color:var(--danger); border-color:var(--danger);">O'chirish</button>
+        <button type="button" class="btn lg" id="cancelMonthBtn">Bekor qilish</button>
+        <button type="submit" class="btn primary lg" id="saveMonthBtn">Saqlash</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="overlay" id="soldListOverlay">
+  <div class="modal wide">
+    <button class="modal-close" id="closeSoldListModal">&times;</button>
+    <h2>Sotilgan telefonlar</h2>
+    <div class="modal-sub" id="soldListSub"></div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="soldListTable">
+          <thead><tr>
+            <th class="rownum">#</th><th>Model</th><th>Sotib olingan</th><th>Sotilgan</th><th>Foyda</th>
+          </tr></thead>
+          <tbody id="soldListTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -715,10 +792,13 @@
     deleteId: null,
     financeUnlocked: false,
     pendingExport: null,
-    sheetSyncUrl: ""
+    sheetSyncUrl: "",
+    financeMonths: [],
+    financeView: {mode:"live"},
+    editingMonthId: null
   };
 
-  var db = null, auth = null, phonesCol = null, notesDoc = null, sheetSyncDoc = null;
+  var db = null, auth = null, phonesCol = null, notesDoc = null, sheetSyncDoc = null, monthsDoc = null;
   var importParsed = null;
 
   /* ====================== iPhone / Samsung color + model data ====================== */
@@ -1090,6 +1170,54 @@
     }catch(e){ return false; }
   }
 
+  /** GET the Apps Script's ?action=export JSON (records + unidentified rows) from any sheet-sync URL. */
+  async function fetchSheetExport(url){
+    var sep = url.indexOf("?")===-1 ? "?" : "&";
+    var res = await fetch(url+sep+"action=export");
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    return res.json();
+  }
+
+  var sheetCheckInFlight = false;
+  /** Two-way sync: finds rows typed straight into the Sheet (no ID yet) and creates a
+   *  matching Firestore record for each. The very next normal sync (which this triggers)
+   *  wipes the old ID-less row from the Sheet and replaces it with the properly grouped one. */
+  async function checkSheetForNewRows(silent){
+    if(!sheetSyncReady() || !phonesCol || sheetCheckInFlight) return;
+    sheetCheckInFlight = true;
+    var btn = document.getElementById("sheetCheckBtn");
+    if(btn && !silent){ btn.disabled = true; setBtnLabel(btn, "Tekshirilmoqda…"); }
+    try{
+      var json = await fetchSheetExport(activeSheetSyncUrl());
+      var rows = json.unidentified || [];
+      var added = 0;
+      for(var i=0;i<rows.length;i++){
+        var r = rows[i];
+        if(!r.model) continue;
+        var data = {
+          brand: r.brand||"other", status: r.status||"stock",
+          source: r.source||"", sourcePhone: r.sourcePhone||"", model: r.model||"",
+          imeiBox: !!r.imeiBox, imei: r.imei||"",
+          buyDate: r.buyDate||"", sellDate: r.sellDate||"",
+          buyPrice: r.buyPrice!=null?r.buyPrice:null, sellPrice: r.sellPrice!=null?r.sellPrice:null,
+          buyer: r.buyer||"", buyerPhone: r.buyerPhone||"",
+          note:"", sellNote:"", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+          seq: Date.now()+i
+        };
+        var docRef = await phonesCol.add(data);
+        added++;
+        syncToSheet("upsert", docRef.id, data);
+      }
+      if(added) toast(added+" ta yangi telefon Sheetdan qo'shildi");
+      else if(!silent) toast("Sheetda yangi qator topilmadi");
+    }catch(e){
+      if(!silent) toast("Sheetni tekshirishda xatolik: "+e.message, true);
+    }
+    sheetCheckInFlight = false;
+    if(btn && !silent){ btn.disabled = false; setBtnLabel(btn, "Sheetdan tekshirish"); }
+  }
+  document.getElementById("sheetCheckBtn").addEventListener("click", function(){ checkSheetForNewRows(false); });
+
   /* ====================== firebase init ====================== */
   function setStatus(mode, label){
     var dot = document.getElementById("statusDot"), txt = document.getElementById("statusText");
@@ -1103,36 +1231,78 @@
     b.innerHTML =
       '<b>Firebase ulanmagan.</b> Ma\'lumotlar hozircha saqlanmaydi. Ulash uchun:<br>'+
       '1. Firebase konsolida loyihangizni oching → Project settings → General → "Your apps" → Web app qo\'shing (yoki mavjudini oching) va SDK config\'ni oling.<br>'+
-      '2. Authentication → Sign-in method → <code>Anonymous</code> ni yoqing.<br>'+
+      '2. Authentication → Sign-in method → <code>Email/Password</code> ni yoqing, so\'ng Users bo\'limida faqat shu 2 ta hisobni qo\'lda yarating: <code>vipmobile1317@gmail.com</code> va <code>abdujalilov7707@gmail.com</code>.<br>'+
       '3. Firestore Database yarating (Native mode) va Rules bo\'limiga quyidagini qo\'ying:<br>'+
-      '<pre>rules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null;\n    }\n  }\n}</pre>'+
+      '<pre>rules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null\n        && request.auth.token.email in [\n          \'vipmobile1317@gmail.com\',\n          \'abdujalilov7707@gmail.com\'\n        ];\n    }\n  }\n}</pre>'+
       '4. <code>firebaseConfig</code> obyektini (index.html faylining boshida) o\'z qiymatlaringizga almashtiring.';
   }
   function initFirebase(){
-    if(!firebaseReady){ showSetupBanner(); setStatus("off","Firebase sozlanmagan"); return; }
+    if(!firebaseReady){
+      document.getElementById("appRoot").hidden = false;
+      showSetupBanner(); setStatus("off","Firebase sozlanmagan"); return;
+    }
     try{
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
       auth = firebase.auth();
-    }catch(e){ showSetupBanner(); setStatus("off","Firebase xatosi"); toast("Firebase init xatosi: "+e.message, true); return; }
+    }catch(e){
+      document.getElementById("appRoot").hidden = false;
+      showSetupBanner(); setStatus("off","Firebase xatosi"); toast("Firebase init xatosi: "+e.message, true); return;
+    }
 
     auth.onAuthStateChanged(function(user){
-      if(user){
+      if(user && ALLOWED_EMAILS.indexOf((user.email||"").toLowerCase())!==-1){
+        document.getElementById("loginScreen").hidden = true;
+        document.getElementById("appRoot").hidden = false;
+        document.getElementById("loggedInEmail").textContent = user.email;
         setStatus("live");
         startListeners();
+      } else if(user){
+        // signed in but not an allowed account - kick them out immediately
+        auth.signOut();
+        showLoginScreen("Bu hisobga ruxsat yo'q.");
       } else {
-        auth.signInAnonymously().catch(function(err){
-          setStatus("off","Auth xatosi");
-          showSetupBanner();
-          toast("Anonim kirish yoqilmagan: "+err.message, true);
-        });
+        showLoginScreen();
       }
     });
   }
+  var ALLOWED_EMAILS = ["vipmobile1317@gmail.com","abdujalilov7707@gmail.com"];
+  function showLoginScreen(errorMsg){
+    document.getElementById("appRoot").hidden = true;
+    document.getElementById("loginScreen").hidden = false;
+    var errEl = document.getElementById("loginError");
+    if(errorMsg){ errEl.textContent = errorMsg; errEl.style.display = "block"; }
+    else { errEl.style.display = "none"; }
+  }
+  var LOGIN_ERROR_MSG = {
+    "auth/invalid-email": "Email noto'g'ri formatda",
+    "auth/user-not-found": "Bunday hisob topilmadi",
+    "auth/wrong-password": "Parol noto'g'ri",
+    "auth/invalid-credential": "Email yoki parol noto'g'ri",
+    "auth/too-many-requests": "Juda ko'p urinish — birozdan keyin qayta urining",
+    "auth/operation-not-allowed": "Email/parol bilan kirish hali Firebase'da yoqilmagan"
+  };
+  document.getElementById("loginForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    if(!auth){ return; }
+    var email = document.getElementById("loginEmail").value.trim();
+    var password = document.getElementById("loginPassword").value;
+    var btn = document.getElementById("loginSubmitBtn");
+    btn.disabled = true; setBtnLabel(btn, "Tekshirilmoqda…");
+    auth.signInWithEmailAndPassword(email, password).catch(function(err){
+      showLoginScreen(LOGIN_ERROR_MSG[err.code] || ("Xatolik: "+err.message));
+    }).finally(function(){
+      btn.disabled = false; setBtnLabel(btn, "Kirish");
+    });
+  });
+  document.getElementById("logoutBtn").addEventListener("click", function(){
+    if(auth) auth.signOut();
+  });
   function startListeners(){
     phonesCol = db.collection("phones");
     notesDoc = db.collection("meta").doc("notes");
     sheetSyncDoc = db.collection("meta").doc("sheetSync");
+    monthsDoc = db.collection("meta").doc("financeMonths");
 
     phonesCol.orderBy("seq","desc").limit(3000).onSnapshot(function(snap){
       state.phones = snap.docs.map(function(d){
@@ -1159,6 +1329,16 @@
       state.sheetSyncUrl = (d && d.url) || "";
       renderSheetSyncBanner();
     });
+
+    monthsDoc.onSnapshot(function(snap){
+      var d = snap.exists ? snap.data() : null;
+      state.financeMonths = (d && d.months) || [];
+      renderMonthsList();
+    });
+
+    if(!state.sheetCheckInterval){
+      state.sheetCheckInterval = setInterval(function(){ checkSheetForNewRows(true); }, 90000);
+    }
   }
 
   /* ====================== section shell (per brand) - excel-style table, no pagination, no price ====================== */
@@ -1195,7 +1375,7 @@
       '</div>'+
       '<div class="table-wrap">'+
         '<div class="table-scroll">'+
-          '<table id="table-'+brand+'">'+
+          '<table id="table-'+brand+'" class="phone-table">'+
             '<thead><tr>'+
               '<th class="rownum">#</th>'+
               '<th data-sort="model">Model</th>'+
@@ -1254,6 +1434,7 @@
     var brandTag = brand==="all" ? '<span class="brandtag '+rowBrand+'" style="margin-right:6px;">'+esc(BRAND_LABEL[rowBrand]||rowBrand)+'</span>' : '';
     var showSoldBtn = p.status!=="sold";
     var showReturnBtn = p.status==="sold";
+    var showBandBtn = p.status==="stock";
     var returnedTag = (p.status!=="sold" && p.returnedAt) ? ' <span style="color:var(--gold); font-weight:600; font-size:11px;">(qaytarilgan)</span>' : '';
     return '<tr>'+
       '<td class="rownum">'+(i+1)+'</td>'+
@@ -1269,6 +1450,7 @@
       '<td><div class="row-actions">'+
         '<button class="btn sm ghost" data-edit="'+p.id+'" data-brand="'+rowBrand+'">Tahrir</button>'+
         (showSoldBtn ? '<button class="btn sm ghost" data-sold="'+p.id+'" style="color:var(--success)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 12l6 6L20 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg> Sotildi</button>' : '')+
+        (showBandBtn ? '<button class="btn sm ghost" data-band="'+p.id+'" style="color:var(--gold)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="2"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Band</button>' : '')+
         (showReturnBtn ? '<button class="btn sm ghost" data-return="'+p.id+'" style="color:var(--gold)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 12H4M4 12l6-6M4 12l6 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Qaytarib olindi</button>' : '')+
       '</div></td>'+
     '</tr>';
@@ -1365,6 +1547,9 @@
     });
     tbody.querySelectorAll("[data-return]").forEach(function(btn){
       btn.onclick = function(){ openReturnConfirm(btn.getAttribute("data-return")); };
+    });
+    tbody.querySelectorAll("[data-band]").forEach(function(btn){
+      btn.onclick = function(){ openBandConfirm(btn.getAttribute("data-band")); };
     });
 
     var countEl = document.getElementById("count-"+brand);
@@ -1464,7 +1649,23 @@
   /* ====================== finance (password gated) ====================== */
   function renderFinance(){
     if(!state.financeUnlocked) return;
-    var all = state.phones;
+    var view = state.financeView || {mode:"live"};
+    var banner = document.getElementById("monthViewBanner");
+    if(view.mode==="month"){
+      banner.hidden = false;
+      if(view.loading){
+        banner.innerHTML = '<span>"'+esc(view.label)+'" yuklanmoqda…</span>';
+      } else if(view.error){
+        banner.innerHTML = '<span><b style="color:var(--danger)">Xatolik:</b> "'+esc(view.label)+'" yuklanmadi — '+esc(view.error)+'</span><button class="btn sm" id="monthBackBtn">Joriy oyga qaytish</button>';
+      } else {
+        banner.innerHTML = '<span><b style="color:var(--gold)">'+esc(view.label)+'</b> (arxiv) ko\'rsatilmoqda'+(view.sheetUrl?' — <a href="'+esc(view.sheetUrl)+'" target="_blank" rel="noopener" style="color:var(--accent)">Sheetni ochish</a>':'')+'</span><button class="btn sm primary" id="monthBackBtn">Joriy oyga qaytish</button>';
+      }
+      var backBtn = document.getElementById("monthBackBtn");
+      if(backBtn) backBtn.onclick = closeMonthView;
+    } else {
+      banner.hidden = true;
+    }
+    var all = (view.mode==="month" && view.records) ? view.records : state.phones;
     var sold = all.filter(function(p){return p.status==="sold";});
     var stock = all.filter(function(p){return p.status==="stock";});
     var lost = all.filter(function(p){return p.status==="lost";});
@@ -1477,17 +1678,19 @@
     var lostValue = lost.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
 
     var kpis = [
-      {label:"Sof foyda", value:fmtMoney(totalProfit), cls:totalProfit>=0?"success":"danger", sub:sold.length+" ta telefon sotilgan"},
+      {label:"Sof foyda", value:fmtMoney(totalProfit), cls:totalProfit>=0?"success":"danger", sub:sold.length+" ta telefon sotilgan", clickable:true},
       {label:"Jami sotuv summasi", value:fmtMoney(totalRevenue), cls:"", sub:"Sotilgan telefonlardan tushgan pul"},
       {label:"Foyda foizi", value:margin.toFixed(1)+"%", cls:"gold", sub:"Har $100 xarajatdan qancha foyda"},
       {label:"Sotilmagan qiymati", value:fmtMoney(capitalInStock), cls:"", sub:stock.length+" ta telefon"},
       {label:"Yo'qolgan zarar", value:lostValue?fmtMoney(lostValue):"$0", cls:lostValue?"danger":"", sub:lost.length+" ta telefon"}
     ];
     document.getElementById("finKpiGrid").innerHTML = kpis.map(function(k){
-      return '<div class="kpi"><div class="kpi-label">'+esc(k.label)+'</div>'+
+      return '<div class="kpi'+(k.clickable?' kpi-clickable':'')+'"'+(k.clickable?' id="profitKpiCard"':'')+'><div class="kpi-label">'+esc(k.label)+'</div>'+
         '<div class="kpi-value '+k.cls+'">'+esc(k.value)+'</div>'+
         '<div class="kpi-sub">'+esc(k.sub)+'</div></div>';
     }).join("");
+    var profitCard = document.getElementById("profitKpiCard");
+    if(profitCard) profitCard.onclick = function(){ openSoldListModal(sold, view.mode==="month"?view.label:"Joriy oy"); };
 
     var byMonth = {};
     all.forEach(function(p){
@@ -1542,6 +1745,140 @@
     }).join("") : '<li class="rank-row"><span class="rank-meta">Ma\'lumot yo\'q</span></li>';
   }
 
+  /* ====================== Moliya: sold-phones breakdown modal ====================== */
+  function openSoldListModal(soldList, label){
+    document.getElementById("soldListSub").textContent = label+" — "+soldList.length+" ta telefon sotilgan";
+    var rows = soldList.slice().sort(function(a,b){
+      if(!a.sellDate && !b.sellDate) return 0;
+      if(!a.sellDate) return 1;
+      if(!b.sellDate) return -1;
+      return a.sellDate<b.sellDate?1:-1;
+    });
+    document.getElementById("soldListTbody").innerHTML = rows.length ? rows.map(function(p,i){
+      var pr = profitOf(p);
+      var prCls = pr==null?"":(pr>=0?"success":"danger");
+      var prText = pr==null?"—":((pr>=0?"+":"")+fmtMoney(pr));
+      return '<tr>'+
+        '<td class="rownum">'+(i+1)+'</td>'+
+        '<td><div class="cell-model">'+esc(p.model||"Nomsiz")+'</div>'+(p.buyer?'<div class="cell-sub">'+esc(p.buyer)+'</div>':'')+'</td>'+
+        '<td class="mono">'+(p.buyPrice!=null?fmtMoney(p.buyPrice):"—")+'</td>'+
+        '<td class="mono">'+(p.sellPrice!=null?fmtMoney(p.sellPrice):"—")+'</td>'+
+        '<td class="mono '+prCls+'" style="font-weight:700;">'+prText+'</td>'+
+      '</tr>';
+    }).join("") : '<tr><td colspan="5"><div class="empty-state">Sotilgan telefon yo\'q</div></td></tr>';
+    document.getElementById("soldListOverlay").classList.add("open");
+  }
+  document.getElementById("closeSoldListModal").addEventListener("click", function(){
+    document.getElementById("soldListOverlay").classList.remove("open");
+  });
+  document.getElementById("soldListOverlay").addEventListener("click", function(e){
+    if(e.target.id==="soldListOverlay") this.classList.remove("open");
+  });
+
+  /* ====================== Moliya: monthly archives ====================== */
+  function renderMonthsList(){
+    var el = document.getElementById("monthsList");
+    if(!el) return;
+    var months = state.financeMonths||[];
+    var view = state.financeView||{mode:"live"};
+    if(!months.length){
+      el.innerHTML = '<div class="empty-state" style="padding:16px 0;">Hali oy qo\'shilmagan</div>';
+      return;
+    }
+    el.innerHTML = months.slice().sort(function(a,b){return (b.createdAt||"").localeCompare(a.createdAt||"");}).map(function(m){
+      var active = view.mode==="month" && view.id===m.id;
+      return '<div class="rank-row month-row'+(active?' active':'')+'" data-month-open="'+esc(m.id)+'" style="cursor:pointer;">'+
+        '<span class="rank-name">'+esc(m.label)+'</span>'+
+        '<button class="btn sm ghost" data-month-edit="'+esc(m.id)+'" style="padding:3px 9px; font-size:11.5px;">Tahrir</button>'+
+      '</div>';
+    }).join("");
+    el.querySelectorAll("[data-month-open]").forEach(function(row){
+      row.addEventListener("click", function(e){
+        if(e.target.closest("[data-month-edit]")) return;
+        var m = months.find(function(x){return x.id===row.getAttribute("data-month-open");});
+        if(m) openMonthView(m);
+      });
+    });
+    el.querySelectorAll("[data-month-edit]").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        openMonthModal(btn.getAttribute("data-month-edit"));
+      });
+    });
+  }
+
+  function openMonthModal(monthId){
+    state.editingMonthId = monthId || null;
+    var m = monthId ? (state.financeMonths||[]).find(function(x){return x.id===monthId;}) : null;
+    document.getElementById("monthModalTitle").textContent = monthId ? "Oyni tahrirlash" : "Oy qo'shish";
+    document.getElementById("m_label").value = m ? m.label : "";
+    document.getElementById("m_scriptUrl").value = m ? m.scriptUrl : "";
+    document.getElementById("m_sheetUrl").value = m ? (m.sheetUrl||"") : "";
+    document.getElementById("deleteMonthBtn").hidden = !monthId;
+    document.getElementById("monthOverlay").classList.add("open");
+  }
+  function closeMonthModal(){
+    document.getElementById("monthOverlay").classList.remove("open");
+    state.editingMonthId = null;
+  }
+  document.getElementById("closeMonthModal").addEventListener("click", closeMonthModal);
+  document.getElementById("cancelMonthBtn").addEventListener("click", closeMonthModal);
+  document.getElementById("addMonthBtn").addEventListener("click", function(){ openMonthModal(null); });
+  document.getElementById("monthOverlay").addEventListener("click", function(e){ if(e.target.id==="monthOverlay") closeMonthModal(); });
+
+  document.getElementById("monthForm").addEventListener("submit", async function(ev){
+    ev.preventDefault();
+    if(!monthsDoc){ toast("Firebase ulanmagan", true); return; }
+    var label = document.getElementById("m_label").value.trim();
+    var scriptUrl = document.getElementById("m_scriptUrl").value.trim();
+    var sheetUrl = document.getElementById("m_sheetUrl").value.trim();
+    if(!label || !scriptUrl){ toast("Oy nomi va Apps Script havolasi shart", true); return; }
+    var months = (state.financeMonths||[]).slice();
+    if(state.editingMonthId){
+      var idx = months.findIndex(function(x){return x.id===state.editingMonthId;});
+      if(idx!==-1) months[idx] = Object.assign({}, months[idx], {label:label, scriptUrl:scriptUrl, sheetUrl:sheetUrl});
+    } else {
+      months.push({id:"m"+Date.now(), label:label, scriptUrl:scriptUrl, sheetUrl:sheetUrl, createdAt:new Date().toISOString()});
+    }
+    var btn = document.getElementById("saveMonthBtn");
+    btn.disabled = true;
+    try{
+      await monthsDoc.set({months: months});
+      toast("Oy saqlandi");
+      closeMonthModal();
+    }catch(e){ toast("Saqlashda xatolik: "+(e.code||e.message), true); }
+    btn.disabled = false;
+  });
+  document.getElementById("deleteMonthBtn").addEventListener("click", async function(){
+    if(!state.editingMonthId || !monthsDoc) return;
+    var months = (state.financeMonths||[]).filter(function(x){return x.id!==state.editingMonthId;});
+    try{
+      await monthsDoc.set({months: months});
+      toast("Oy o'chirildi");
+      if(state.financeView.mode==="month" && state.financeView.id===state.editingMonthId) closeMonthView();
+      closeMonthModal();
+    }catch(e){ toast("Xatolik: "+(e.code||e.message), true); }
+  });
+
+  async function openMonthView(m){
+    state.financeView = {mode:"month", id:m.id, label:m.label, sheetUrl:m.sheetUrl, loading:true};
+    renderFinance();
+    renderMonthsList();
+    try{
+      var json = await fetchSheetExport(m.scriptUrl);
+      state.financeView = {mode:"month", id:m.id, label:m.label, sheetUrl:m.sheetUrl, loading:false, records: json.records||[]};
+    }catch(e){
+      state.financeView = {mode:"month", id:m.id, label:m.label, sheetUrl:m.sheetUrl, loading:false, error: e.message};
+    }
+    renderFinance();
+    renderMonthsList();
+  }
+  function closeMonthView(){
+    state.financeView = {mode:"live"};
+    renderFinance();
+    renderMonthsList();
+  }
+
   function renderAll(){
     renderDashboard();
     BRANDS.forEach(renderSection);
@@ -1557,6 +1894,7 @@
     });
     if(tab!=="finance" && state.financeUnlocked){
       state.financeUnlocked = false;
+      state.financeView = {mode:"live"};
       document.getElementById("financeLock").hidden = false;
       document.getElementById("financeContent").hidden = true;
       document.getElementById("financePassword").value = "";
@@ -1594,6 +1932,7 @@
       document.getElementById("financeContent").hidden = false;
       renderFinance();
       renderSheetSyncBanner();
+      renderMonthsList();
     } else {
       toast("Parol noto'g'ri", true);
     }
@@ -1701,7 +2040,7 @@
     document.getElementById("f_buyPrice").value = p && p.buyPrice!=null ? p.buyPrice : "";
     document.getElementById("f_buyer").value = p ? (p.buyer||"") : "";
     document.getElementById("f_buyerPhone").value = p ? (p.buyerPhone||"") : "";
-    document.getElementById("f_sellDate").value = p ? (p.sellDate||"") : new Date().toISOString().slice(0,10);
+    document.getElementById("f_sellDate").value = p ? (p.sellDate||"") : "";
     document.getElementById("f_sellPrice").value = p && p.sellPrice!=null ? p.sellPrice : "";
     document.getElementById("f_note").value = p ? (p.note||"") : "";
     document.getElementById("f_sellNote").value = p ? (p.sellNote||"") : "";
@@ -1844,6 +2183,15 @@
     setConfirmButton("Ha, qaytarib olindi", false);
     document.getElementById("confirmOverlay").classList.add("open");
   }
+  function openBandConfirm(id){
+    state.deleteId = id;
+    confirmAction = "band-phone";
+    var p = state.phones.find(function(x){return x.id===id;});
+    document.getElementById("confirmTitle").textContent = "Band deb belgilashni tasdiqlang";
+    document.getElementById("confirmText").textContent = "\""+((p&&p.model)||"Ushbu telefon")+"\" \"Band\" deb belgilanadi va ro'yxatda pastga, Band bo'limiga tushadi. Kimga berilganini keyin \"Tahrir\" orqali qo'shishingiz mumkin.";
+    setConfirmButton("Ha, Band qilish", false);
+    document.getElementById("confirmOverlay").classList.add("open");
+  }
   async function doConfirm(){
     if(confirmAction==="delete-phone"){
       if(!state.deleteId || !phonesCol) return;
@@ -1864,6 +2212,16 @@
         var prior = state.phones.find(function(x){return x.id===state.deleteId;}) || {};
         syncToSheet("upsert", state.deleteId, Object.assign({}, prior, fields));
         toast("Qaytarib olindi, sotilmagan ro'yxatiga qaytdi");
+      }catch(e){ toast("Xatolik: "+(e.code||e.message), true); }
+      closeConfirm();
+    } else if(confirmAction==="band-phone"){
+      if(!state.deleteId || !phonesCol) return;
+      try{
+        var fields2 = {status:"lent", updatedAt: new Date().toISOString()};
+        await phonesCol.doc(state.deleteId).update(fields2);
+        var prior2 = state.phones.find(function(x){return x.id===state.deleteId;}) || {};
+        syncToSheet("upsert", state.deleteId, Object.assign({}, prior2, fields2));
+        toast("Band deb belgilandi");
       }catch(e){ toast("Xatolik: "+(e.code||e.message), true); }
       closeConfirm();
     }
