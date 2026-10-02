@@ -2624,6 +2624,10 @@ function doGet(e) {
       sellNote: document.getElementById("f_sellNote").value.trim(),
       updatedAt: new Date().toISOString()
     };
+    if(data.status==="sold"){
+      var priorForSold = state.editingId ? state.phones.find(function(x){return x.id===state.editingId;}) : null;
+      if(!priorForSold || priorForSold.status!=="sold") data.soldAt = new Date().toISOString();
+    }
     var saveBtn = document.getElementById("savePhoneBtn");
     saveBtn.disabled = true; setBtnLabel(saveBtn, "Saqlanmoqda…");
     try{
