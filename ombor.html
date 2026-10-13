@@ -3196,7 +3196,7 @@ function doGet(e) {
         slice.forEach(function(rec, j){
           var ref = phonesCol.doc();
           rec.seq = Date.now() + i + j;
-          rec.createdAt = now; rec.updatedAt = now;
+          rec.importedAt = now; rec.updatedAt = now;
           batch.set(ref, rec);
           imported.push(Object.assign({id: ref.id}, rec));
         });
