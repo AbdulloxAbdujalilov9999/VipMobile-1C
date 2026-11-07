@@ -808,7 +808,7 @@
   var FINANCE_PASSWORD = "0000";
 
   /* Google Sheet sync: paste the Apps Script Web App URL here once deployed (see setup instructions). */
-  var SHEET_SYNC_URL = "https://script.google.com/macros/s/AKfycbwtFxuwdC8ejgPUEtyy4d20aIGsZlfBl6675Mn_Wptv3LVF3PkYzsD11OsvKY2D93FHKw/exec";
+  var SHEET_SYNC_URL = ""; // the link is saved from Moliya > Google Sheet (stored in Firestore), never hardcoded
 
   var BRANDS = ["iphone","samsung","other"];
   var VIRTUAL_BRANDS = ["all","new"];
@@ -984,6 +984,8 @@ function formatSheet_(sh, color) {
     sh.getRange(2, 8, dataRows, 1).setNumberFormat(DATE_FORMAT);  // bought date
     sh.getRange(2, 10, dataRows, 1).setNumberFormat(DATE_FORMAT); // sold date
     sh.getRange(2, 12, dataRows, 2).setNumberFormat('"$"#,##0');  // bought/sold rate
+    sh.getRange(2, 9, dataRows, 1).setNumberFormat('@');          // bought time  (plain text, so "14:35" stays "14:35")
+    sh.getRange(2, 11, dataRows, 1).setNumberFormat('@');         // sold time
   }, 'number formats');
 
   safely_(function () { sh.setTabColor(color); }, 'tab color');
@@ -1004,6 +1006,10 @@ function dividerRow_(label) { var r = blankRow_(); r[2] = label; return r; }
 
 function dateBack_(v) {
   if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return v || '';
+}
+function timeBack_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'HH:mm');
   return v || '';
 }
 function byBuyDateDesc_(a, b) {
@@ -1027,8 +1033,8 @@ function readSheetRecords_(sh) {
       id: id, status: row[1] || 'stock',
       source: row[2] || '', sourcePhone: row[3] || '', model: row[4] || '',
       imeiBox: row[5] === 'Bor', imei: row[6] || '',
-      buyDate: dateBack_(row[7]), buyTime: row[8] || '',
-      sellDate: dateBack_(row[9]), sellTime: row[10] || '',
+      buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
+      sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
       buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
       buyer: row[13] || '', buyerPhone: row[14] || ''
     });
@@ -1208,8 +1214,8 @@ function exportAllData_() {
         id: id || null, status: row[1] || 'stock', brand: def.key,
         source: row[2] || '', sourcePhone: row[3] || '', model: model || '',
         imeiBox: row[5] === 'Bor', imei: row[6] || '',
-        buyDate: dateBack_(row[7]), buyTime: row[8] || '',
-        sellDate: dateBack_(row[9]), sellTime: row[10] || '',
+        buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
+        sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
         buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
         buyer: row[13] || '', buyerPhone: row[14] || ''
       };
@@ -1652,12 +1658,14 @@ function doGet(e) {
   }
 
   var sheetCheckInFlight = false;
+  var sheetImportedKeys = {};
   /** Two-way sync: finds rows typed straight into the Sheet (no ID yet) and creates a
    *  matching Firestore record for each. The very next normal sync (which this triggers)
    *  wipes the old ID-less row from the Sheet and replaces it with the properly grouped one. */
   async function checkSheetForNewRows(silent){
-    if(!sheetSyncReady() || !phonesCol || sheetCheckInFlight) return;
+    if(!sheetSyncReady() || !phonesCol || sheetCheckInFlight) return [];
     sheetCheckInFlight = true;
+    var created = [];
     var btn = document.getElementById("sheetCheckBtn");
     if(btn && !silent){ btn.disabled = true; setBtnLabel(btn, "Tekshirilmoqda…"); }
     try{
@@ -1667,8 +1675,13 @@ function doGet(e) {
       for(var i=0;i<rows.length;i++){
         var r = rows[i];
         if(!r.model) continue;
+        var imeiDigits = String(r.imei||"").replace(/\D/g,"");
+        var dupKey = (imeiDigits.length>=13 ? imeiDigits : [r.model,r.buyDate,r.buyPrice,r.source].join("|"));
+        var alreadyHave = state.phones.some(function(p){ return imeiDigits.length>=13 && String(p.imei||"").replace(/\D/g,"")===imeiDigits; });
+        if(alreadyHave || sheetImportedKeys[dupKey]) continue;   // never create the same Sheet row twice
+        sheetImportedKeys[dupKey] = true;
         var data = {
-          brand: r.brand||"other", status: r.status||"stock",
+          brand: r.brand||"other", status: r.status||"stock", isNew: /NEW/i.test(r.model),
           source: r.source||"", sourcePhone: r.sourcePhone||"", model: r.model||"",
           imeiBox: !!r.imeiBox, imei: r.imei||"",
           buyDate: r.buyDate||"", sellDate: r.sellDate||"",
@@ -1679,6 +1692,7 @@ function doGet(e) {
         };
         var docRef = await phonesCol.add(data);
         added++;
+        created.push(Object.assign({id: docRef.id}, data));
         syncToSheet("upsert", docRef.id, data);
       }
       if(added) toast(added+" ta yangi telefon Sheetdan qo'shildi");
@@ -1688,6 +1702,7 @@ function doGet(e) {
     }
     sheetCheckInFlight = false;
     if(btn && !silent){ btn.disabled = false; setBtnLabel(btn, "Sheetdan tekshirish"); }
+    return created;
   }
   document.getElementById("sheetCheckBtn").addEventListener("click", function(){ checkSheetForNewRows(false); });
   document.getElementById("copySheetSyncBtn").addEventListener("click", async function(){
@@ -1741,8 +1756,10 @@ function doGet(e) {
       } else if(user){
         // signed in but not an allowed account - kick them out immediately
         auth.signOut();
+        stopListeners();
         showLoginScreen("Bu hisobga ruxsat yo'q.");
       } else {
+        stopListeners();
         showLoginScreen();
       }
     });
@@ -1779,13 +1796,29 @@ function doGet(e) {
   document.getElementById("logoutBtn").addEventListener("click", function(){
     if(auth) auth.signOut();
   });
+  var listenerUnsubs = [];
+  function stopListeners(){
+    listenerUnsubs.forEach(function(u){ try{ u(); }catch(e){} });
+    listenerUnsubs = [];
+    if(state.sheetCheckInterval){ clearInterval(state.sheetCheckInterval); state.sheetCheckInterval = null; }
+    state.phones = []; state.financeMonths = []; state.sheetSyncUrl = ""; state.sheetLinkUrl = "";
+    state.financeUnlocked = false; state.financeView = {mode:"live"};
+    phonesCol = notesDoc = sheetSyncDoc = monthsDoc = null;
+    var fl = document.getElementById("financeLock"), fc = document.getElementById("financeContent");
+    if(fl) fl.hidden = false; if(fc) fc.hidden = true;
+    var pw = document.getElementById("financePassword"); if(pw) pw.value = "";
+    document.querySelectorAll(".overlay.open").forEach(function(o){ o.classList.remove("open"); });
+    try{ renderAll(); }catch(e){}
+    switchTab("dashboard");
+  }
   function startListeners(){
+    stopListeners();
     phonesCol = db.collection("phones");
     notesDoc = db.collection("meta").doc("notes");
     sheetSyncDoc = db.collection("meta").doc("sheetSync");
     monthsDoc = db.collection("meta").doc("financeMonths");
 
-    phonesCol.orderBy("seq","desc").limit(3000).onSnapshot(function(snap){
+    listenerUnsubs.push(phonesCol.orderBy("seq","desc").limit(3000).onSnapshot(function(snap){
       state.phones = snap.docs.map(function(d){
         var v = Object.assign({}, d.data()||{});
         v.id = d.id;
@@ -1796,27 +1829,27 @@ function doGet(e) {
     }, function(err){
       setStatus("off","O'qish xatosi");
       toast("Ma'lumotlarni o'qishda xatolik: "+err.code, true);
-    });
+    }));
 
-    notesDoc.onSnapshot(function(snap){
+    listenerUnsubs.push(notesDoc.onSnapshot(function(snap){
       var d = snap.exists ? snap.data() : null;
       state.notes = (d && d.text) || "";
       var field = document.getElementById("notesField");
       if(document.activeElement !== field) field.value = state.notes;
-    });
+    }));
 
-    sheetSyncDoc.onSnapshot(function(snap){
+    listenerUnsubs.push(sheetSyncDoc.onSnapshot(function(snap){
       var d = snap.exists ? snap.data() : null;
       state.sheetSyncUrl = (d && d.url) || "";
       state.sheetLinkUrl = (d && d.sheetUrl) || "";
       renderSheetSyncBanner();
-    });
+    }));
 
-    monthsDoc.onSnapshot(function(snap){
+    listenerUnsubs.push(monthsDoc.onSnapshot(function(snap){
       var d = snap.exists ? snap.data() : null;
       state.financeMonths = (d && d.months) || [];
       renderMonthsList();
-    });
+    }));
 
     if(!state.sheetCheckInterval){
       state.sheetCheckInterval = setInterval(function(){ checkSheetForNewRows(true); }, 90000);
@@ -2322,6 +2355,7 @@ function doGet(e) {
     var scriptUrl = document.getElementById("m_scriptUrl").value.trim();
     var sheetUrl = document.getElementById("m_sheetUrl").value.trim();
     if(!label || !scriptUrl){ toast("Oy nomi va Apps Script havolasi shart", true); return; }
+    if(!/^https?:\/\//i.test(scriptUrl) || (sheetUrl && !/^https?:\/\//i.test(sheetUrl))){ toast("Havola http:// yoki https:// bilan boshlanishi kerak", true); return; }
     var months = (state.financeMonths||[]).slice();
     if(state.editingMonthId){
       var idx = months.findIndex(function(x){return x.id===state.editingMonthId;});
@@ -2858,8 +2892,8 @@ function doGet(e) {
     if(!sheetSyncDoc){ toast("Firebase ulanmagan", true); return; }
     var val = document.getElementById("sheetUrlInput").value.trim();
     var sheetVal = document.getElementById("sheetLinkInput").value.trim();
-    if(val && val.indexOf("http")!==0){ toast("Apps Script havolasi noto'g'ri ko'rinadi", true); return; }
-    if(sheetVal && sheetVal.indexOf("http")!==0){ toast("Sheet havolasi noto'g'ri ko'rinadi", true); return; }
+    if(val && !/^https?:\/\//i.test(val)){ toast("Apps Script havolasi noto'g'ri ko'rinadi", true); return; }
+    if(sheetVal && !/^https?:\/\//i.test(sheetVal)){ toast("Sheet havolasi noto'g'ri ko'rinadi", true); return; }
     var btn = this;
     btn.disabled = true;
     try{
@@ -2887,8 +2921,9 @@ function doGet(e) {
     var btn = this;
     btn.disabled = true; setBtnLabel(btn, "Tekshirilmoqda…");
     try{
-      await checkSheetForNewRows(true);
-      var ok = await bulkSyncToSheet(state.phones);
+      var added = await checkSheetForNewRows(true);
+      var known = {}; state.phones.forEach(function(p){ known[p.id] = true; });
+      var ok = await bulkSyncToSheet(state.phones.concat(added.filter(function(p){ return !known[p.id]; })));
       toast(ok ? "Sinxronlash tekshirildi — ikkala tomon ham yangilandi" : "Sinxronlashda xatolik", !ok);
     }catch(e){
       toast("Xatolik: "+e.message, true);
@@ -2997,69 +3032,94 @@ function doGet(e) {
   }
   document.getElementById("finImportBtn").addEventListener("click", openImportModal);
 
-  function colType(samples){
-    var nonEmpty = samples.filter(function(v){ return v!==null && v!==undefined && String(v).trim()!==""; });
-    if(!nonEmpty.length) return {type:"empty", avgLen:0};
-    var dateHits=0, numHits=0, imeiHits=0, korHits=0, borHits=0, phoneHits=0, textHits=0, lenSum=0;
-    nonEmpty.forEach(function(v){
-      var s = String(v).trim();
-      lenSum += s.length;
-      var digits = s.replace(/[^0-9]/g,"");
-      if(typeof v === "number" && v>15000 && v<80000){ dateHits++; return; }
-      if(/^\d{1,2}[.,\/\-]\s*\d{1,2}[.,\/\-]\s*\d{2,4}\.?,?$/.test(s)){ dateHits++; return; }
-      if(/^(BOR|YO'?Q)\.?$/i.test(s)){ borHits++; return; }
-      if(/^KR\.?$/i.test(s)){ korHits++; return; }
-      if(digits.length>=13){ imeiHits++; return; }
-      if(/^-?\d+(\.\d+)?$/.test(s.replace(/\s/g,""))){ numHits++; return; }
-      if(/^[\d\-\+\s]{7,15}$/.test(s) && digits.length>=7 && digits.length<=12){ phoneHits++; return; }
-      textHits++;
-    });
-    var total = nonEmpty.length;
-    var best = "text", bestScore = textHits;
-    [["date",dateHits],["imei",imeiHits],["bor",borHits],["kr",korHits],["num",numHits],["phone",phoneHits]].forEach(function(pair){
-      if(pair[1]>bestScore){ best=pair[0]; bestScore=pair[1]; }
-    });
-    if(bestScore/total < 0.4 && best!=="text") best = "text";
-    return {type:best, avgLen: lenSum/total};
-  }
-
+  /* Scores every column by what its cells actually look like, then assigns fields.
+     (Old version picked the longest-text column as "model", which grabbed the notes column,
+     and read Excel time cells - decimals - as IMEIs.) */
+  var IMPORT_DATE_RE = /^\d{1,2}\s*[.,\/\-]\s*\d{1,2}\s*[.,\/\-]\s*\d{2,4}\.?,?$/;
+  var IMPORT_BOX_RE = /^(BOR|YO'?Q)\.?$/i;
+  var IMPORT_MODEL_RE = /(\d+\s*GB|\b[SAM]\s?\d{2}\b|\b\d{2}\s*(PRO|MAX|PLUS|MINI|AIR)\b|\b(PRO|MAX|ULTRA|PLUS)\b|NOTE|REDMI|XIAOMI|HONOR|HUAWEI|IPHONE|SAMSUNG|GALAXY|FLIP|FOLD|\bN*NEW+\b)/i;
   function guessMapping(rows, startRow, colCount){
-    var sampleRows = rows.slice(startRow, Math.min(startRow+40, rows.length));
-    var cols = [];
+    var data = rows.slice(startRow, Math.min(startRow+400, rows.length));
+    var stats = [];
     for(var c=0;c<colCount;c++){
-      var samples = sampleRows.map(function(r){ return r[c]; });
-      cols.push(colType(samples));
+      var s = {idx:c, n:0, imei:0, date:0, box:0, price:0, phone:0, model:0, text:0, kr:0, lenSum:0};
+      data.forEach(function(r){
+        var v = r[c];
+        if(v===null || v===undefined || String(v).trim()==="") return;
+        var str = String(v).trim();
+        if(/^#[A-Z\/!?0]+/.test(str)) return;            // Excel formula errors (#VALUE! ...)
+        s.n++; s.lenSum += str.length;
+        if(typeof v === "number"){
+          if(v>15000 && v<80000){ s.date++; return; }
+          if(v>=10 && v<=30000 && Math.floor(v)===v){ s.price++; return; }
+          return;                                          // times / decimals / junk
+        }
+        var digits = str.replace(/\D/g,"");
+        if(IMPORT_DATE_RE.test(str)){ s.date++; return; }
+        if(IMPORT_BOX_RE.test(str)){ s.box++; return; }
+        if(/^KR\.?$/i.test(str)){ s.kr++; return; }
+        if(/^[\d\s\-+.]+$/.test(str) && digits.length>=13){ s.imei++; return; }
+        if(/^\d+$/.test(str) && +str>=10 && +str<=30000){ s.price++; return; }
+        if(/^[\d\s\-+]{7,15}$/.test(str) && digits.length>=7 && digits.length<=12){ s.phone++; return; }
+        if(IMPORT_MODEL_RE.test(str)) s.model++;
+        s.text++;
+      });
+      stats.push(s);
     }
-    var mapping = {};
-    var dates=[], nums=[], imeis=[], bors=[], krs=[], phones=[], texts=[];
-    cols.forEach(function(info, idx){
-      if(info.type==="date") dates.push(idx);
-      else if(info.type==="num") nums.push(idx);
-      else if(info.type==="imei") imeis.push(idx);
-      else if(info.type==="bor") bors.push(idx);
-      else if(info.type==="kr") krs.push(idx);
-      else if(info.type==="phone") phones.push(idx);
-      else if(info.type==="text") texts.push(idx);
+    var mapping = {}, used = {};
+    function assign(idx, field){ if(idx>=0){ mapping[idx] = field; used[idx] = true; } }
+    function frac(s, key){ return s.n ? s[key]/s.n : 0; }
+    function bestBy(key, min){
+      var b = null;
+      stats.forEach(function(s){
+        if(used[s.idx] || !s.n) return;
+        var f = frac(s,key);
+        if(f>=min && (!b || f>b.f || (f===b.f && s.n>b.s.n))) b = {s:s, f:f};
+      });
+      return b ? b.s.idx : -1;
+    }
+    function empty(i){ return !stats[i] || stats[i].n===0; }
+
+    assign(bestBy("imei", 0.5), "imei");
+    assign(bestBy("box", 0.5), "imeiBox");
+    var modelIdx = bestBy("model", 0.3);
+    if(modelIdx<0){                                        // fallback: longest-text column
+      var lt = null;
+      stats.forEach(function(s){ if(!used[s.idx] && s.text>0 && (!lt || s.lenSum/s.n > lt.lenSum/lt.n)) lt = s; });
+      modelIdx = lt ? lt.idx : -1;
+    }
+    assign(modelIdx, "model");
+
+    var dateCols = stats.filter(function(s){ return !used[s.idx] && frac(s,"date")>=0.5; }).map(function(s){ return s.idx; });
+    if(dateCols.length){
+      var bd = dateCols[0]; assign(bd, "buyDate");
+      var sd = (bd+1<colCount && (empty(bd+1) || frac(stats[bd+1],"date")>=0.5)) ? bd+1 : dateCols[1];
+      if(sd!==undefined && !used[sd]) assign(sd, "sellDate");
+    }
+    var maxN = Math.max.apply(null, stats.filter(function(s){ return !used[s.idx] && frac(s,"price")>=0.7; }).map(function(s){ return s.n; }).concat([0]));
+    var priceCols = stats.filter(function(s){ return !used[s.idx] && frac(s,"price")>=0.7 && s.n>=0.3*maxN; }).map(function(s){ return s.idx; });
+    if(priceCols.length){
+      var bp = priceCols[0]; assign(bp, "buyPrice");
+      var sp = (bp+1<colCount && !used[bp+1] && (empty(bp+1) || frac(stats[bp+1],"price")>=0.7)) ? bp+1 : priceCols[1];
+      if(sp!==undefined && !used[sp]) assign(sp, "sellPrice");
+    }
+
+    var krCol = bestBy("kr", 0.8);
+    assign(krCol, "note");
+
+    var isTextish = function(s){ return !used[s.idx] && s.n>0 && (frac(s,"text")+frac(s,"phone"))>=0.5; };
+    var before = stats.filter(function(s){ return s.idx<modelIdx && isTextish(s); }).map(function(s){ return s.idx; });
+    if(before.length){
+      assign(before[0], "source");
+      if(before[1]===before[0]+1) assign(before[1], "sourcePhone");
+    }
+    var after = stats.filter(function(s){ return s.idx>modelIdx && isTextish(s); }).map(function(s){ return s.idx; });
+    var buyerSet = false;
+    after.forEach(function(i){
+      if(frac(stats[i],"phone")>=0.5){ assign(i,"buyerPhone"); return; }
+      if(!buyerSet){ assign(i,"buyer"); buyerSet = true; }
+      else assign(i,"note");
     });
-    if(bors.length) mapping[bors[0]] = "imeiBox";
-    if(krs.length) mapping[krs[0]] = "note";
-    if(imeis.length) mapping[imeis[0]] = "imei";
-    if(dates.length>0) mapping[dates[0]] = "buyDate";
-    if(dates.length>1) mapping[dates[1]] = "sellDate";
-    if(nums.length>0) mapping[nums[0]] = "buyPrice";
-    if(nums.length>1) mapping[nums[1]] = "sellPrice";
-
-    var textsSorted = texts.slice().sort(function(a,b){ return cols[b].avgLen - cols[a].avgLen; });
-    if(textsSorted.length){
-      mapping[textsSorted[0]] = "model";
-      var rest = textsSorted.slice(1).sort(function(a,b){ return a-b; });
-      if(rest.length>0) mapping[rest[0]] = "source";
-      if(rest.length>1) mapping[rest[1]] = "buyer";
-    }
-    var phonesSorted = phones.slice().sort(function(a,b){ return a-b; });
-    if(phonesSorted.length>0) mapping[phonesSorted[0]] = "sourcePhone";
-    if(phonesSorted.length>1) mapping[phonesSorted[1]] = "buyerPhone";
-
     return mapping;
   }
 
@@ -3196,7 +3256,7 @@ function doGet(e) {
         slice.forEach(function(rec, j){
           var ref = phonesCol.doc();
           rec.seq = Date.now() + i + j;
-          rec.createdAt = now; rec.updatedAt = now;
+          rec.importedAt = now; rec.updatedAt = now;
           batch.set(ref, rec);
           imported.push(Object.assign({id: ref.id}, rec));
         });
@@ -3237,7 +3297,7 @@ function doGet(e) {
   document.getElementById("filenameOverlay").addEventListener("click", function(e){ if(e.target.id==="filenameOverlay"){ this.classList.remove("open"); state.pendingExport=null; } });
 
   document.addEventListener("keydown", function(e){
-    if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); closeWipeModal(); closeMonthModal(); }
+    if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); closeWipeModal(); closeMonthModal(); document.getElementById("soldListOverlay").classList.remove("open"); }
   });
 
   /* ====================== boot ====================== */

@@ -170,6 +170,8 @@ function formatSheet_(sh, color) {
     sh.getRange(2, 8, dataRows, 1).setNumberFormat(DATE_FORMAT);  // bought date
     sh.getRange(2, 10, dataRows, 1).setNumberFormat(DATE_FORMAT); // sold date
     sh.getRange(2, 12, dataRows, 2).setNumberFormat('"$"#,##0');  // bought/sold rate
+    sh.getRange(2, 9, dataRows, 1).setNumberFormat('@');          // bought time  (plain text, so "14:35" stays "14:35")
+    sh.getRange(2, 11, dataRows, 1).setNumberFormat('@');         // sold time
   }, 'number formats');
 
   safely_(function () { sh.setTabColor(color); }, 'tab color');
@@ -190,6 +192,10 @@ function dividerRow_(label) { var r = blankRow_(); r[2] = label; return r; }
 
 function dateBack_(v) {
   if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return v || '';
+}
+function timeBack_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'HH:mm');
   return v || '';
 }
 function byBuyDateDesc_(a, b) {
@@ -213,8 +219,8 @@ function readSheetRecords_(sh) {
       id: id, status: row[1] || 'stock',
       source: row[2] || '', sourcePhone: row[3] || '', model: row[4] || '',
       imeiBox: row[5] === 'Bor', imei: row[6] || '',
-      buyDate: dateBack_(row[7]), buyTime: row[8] || '',
-      sellDate: dateBack_(row[9]), sellTime: row[10] || '',
+      buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
+      sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
       buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
       buyer: row[13] || '', buyerPhone: row[14] || ''
     });
@@ -394,8 +400,8 @@ function exportAllData_() {
         id: id || null, status: row[1] || 'stock', brand: def.key,
         source: row[2] || '', sourcePhone: row[3] || '', model: model || '',
         imeiBox: row[5] === 'Bor', imei: row[6] || '',
-        buyDate: dateBack_(row[7]), buyTime: row[8] || '',
-        sellDate: dateBack_(row[9]), sellTime: row[10] || '',
+        buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
+        sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
         buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
         buyer: row[13] || '', buyerPhone: row[14] || ''
       };
