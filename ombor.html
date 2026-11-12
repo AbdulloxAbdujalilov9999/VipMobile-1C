@@ -135,7 +135,8 @@
   .sort-bar .sort-label{ font-size:12px; color:var(--ink-dim); font-weight:700; margin-right:2px; }
   .sort-bar .chip.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
   .return-note{ background:var(--gold-soft); color:var(--gold); border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.5; margin-bottom:12px; }
-  .brand-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:22px; }
+  .brand-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
+  @media (max-width:1100px){ .brand-row{ grid-template-columns:repeat(2,1fr); } }
   @media (max-width:700px){ .brand-row{ grid-template-columns:1fr; } }
   .brand-card{
     background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px;
@@ -506,6 +507,7 @@
                     <div class="export-menu" id="finExportMenu">
                       <button data-brand="iphone">Faqat iPhone</button>
                       <button data-brand="samsung">Faqat Samsung</button>
+                      <button data-brand="new">Faqat Yangi telefonlar</button>
                       <button data-brand="other">Faqat Boshqa</button>
                       <button data-brand="all">Barcha telefonlar</button>
                     </div>
@@ -817,6 +819,14 @@
     <button class="modal-close" id="closeSoldListModal">&times;</button>
     <h2>Sotilgan telefonlar</h2>
     <div class="modal-sub" id="soldListSub"></div>
+    <div class="sort-bar" id="soldTypeBar">
+      <span class="sort-label">Turi:</span>
+      <button class="chip active" data-type="all">Barchasi</button>
+      <button class="chip" data-type="iphone">iPhone</button>
+      <button class="chip" data-type="samsung">Samsung</button>
+      <button class="chip" data-type="new">Yangi</button>
+      <button class="chip" data-type="other">Boshqa</button>
+    </div>
     <div class="sort-bar" id="soldSortBar">
       <span class="sort-label">Saralash:</span>
       <button class="chip active" data-sort="date">Sana (yangi)</button>
@@ -871,16 +881,16 @@
  *
  * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa
  *   Barcha  - every phone (grouped iPhone, then Samsung, then Boshqa)
- *   iPhone / Samsung / Boshqa - one per brand
- *   Yangi   - every phone marked NEW (any brand)
- * A phone appears in Barcha + its brand tab (+ Yangi if it is new).
+ *   iPhone / Samsung / Boshqa - one per brand, USED PHONES ONLY
+ *   Yangi   - every phone marked NEW (any brand) - new phones are NOT repeated in the brand tabs
+ * So a phone is in exactly one of iPhone / Samsung / Yangi / Boshqa, and additionally in Barcha.
  *
  * Inside a tab, phones are grouped by exact model ("17 Pro Max", "S24 Ultra", ...),
  * newest-first, with a blank row between groups. Rows are in three sections
  * top-to-bottom: not-sold, then Band, then Sotilgan at the very bottom
  * (this matches the app's own ordering).
  *
- * Columns A (ID), B (Status) and P (Yangi flag) are internal bookkeeping and stay hidden -
+ * Columns A (ID), B (Status), P (Yangi flag) and Q (Brand) are internal bookkeeping and stay hidden -
  * everything from column C to O is the real visible data, starting with "Kimdan olindi".
  *
  * You can type a new phone into ANY tab (no ID needed): the platform picks it up within a minute.
@@ -910,7 +920,7 @@ var HEADERS = [
   "Kimdan olindi", 'Uning raqami', 'Telefon nomi', 'Karobka', 'IMEI',
   "Sotib olingan sana", "Sotib olingan vaqti", 'Sotilgan sana', 'Sotilgan vaqti',
   "Sotib olingan narx", 'Sotilgan narx',
-  'Kimga sotildi', 'Xaridor raqami', 'Yangi'
+  'Kimga sotildi', 'Xaridor raqami', 'Yangi', 'Brand'
 ];
 var DATE_FORMAT = 'dd/mm/yy';
 
@@ -1035,7 +1045,7 @@ function getOrCreateSheet_(name, color) {
 /** Older sheets only have 15 columns / no "Yangi" header: bring them up to date once. */
 function ensureHeader_(sh, color) {
   var ok = false;
-  try { ok = sh.getMaxColumns() >= HEADERS.length && sh.getRange(1, HEADERS.length).getValue() === 'Yangi'; } catch (e) { ok = false; }
+  try { ok = sh.getMaxColumns() >= HEADERS.length && sh.getRange(1, HEADERS.length).getValue() === 'Brand'; } catch (e) { ok = false; }
   if (!ok) { try { formatSheet_(sh, color); } catch (e) { Logger.log('ensureHeader ' + e); } }
 }
 function orderTabs_() {
@@ -1070,11 +1080,11 @@ function formatSheet_(sh, color) {
   safely_(function () { sh.setFrozenRows(1); }, 'freeze header');
 
   safely_(function () {
-    var widths = [40, 60, 150, 110, 260, 70, 170, 100, 70, 100, 70, 100, 100, 170, 120, 50];
+    var widths = [40, 60, 150, 110, 260, 70, 170, 100, 70, 100, 70, 100, 100, 170, 120, 50, 60];
     for (var i = 0; i < widths.length; i++) sh.setColumnWidth(i + 1, widths[i]);
   }, 'column widths');
   safely_(function () { sh.hideColumns(1, 2); }, 'hide id/status columns');
-  safely_(function () { sh.hideColumns(HEADERS.length, 1); }, 'hide Yangi flag column');
+  safely_(function () { sh.hideColumns(HEADERS.length - 1, 2); }, 'hide Yangi flag + Brand columns');
 
   safely_(function () {
     var dataRows = Math.max(1, sh.getMaxRows() - 1);
@@ -1096,7 +1106,8 @@ function rowFor_(rec) {
     rec.buyDate || '', rec.buyTime || '', rec.sellDate || '', rec.sellTime || '',
     rec.buyPrice != null ? rec.buyPrice : '', rec.sellPrice != null ? rec.sellPrice : '',
     rec.buyer || '', rec.buyerPhone || '',
-    rec.isNew ? 'Yangi' : ''
+    rec.isNew ? 'Yangi' : '',
+    rec.brand || ''
   ];
 }
 function blankRow_() { return HEADERS.map(function () { return ''; }); }
@@ -1142,7 +1153,8 @@ function readSheetRecords_(sh) {
       sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
       buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
       buyer: row[13] || '', buyerPhone: row[14] || '',
-      isNew: row[15] === 'Yangi' || isNewModel_(row[4])
+      isNew: row[15] === 'Yangi' || isNewModel_(row[4]),
+      brandCell: row[16] || ''
     });
   });
   return out;
@@ -1250,8 +1262,13 @@ function applyChangeAndRewriteAll_(mutate) {
     sheets[def.name] = sh;
     pending[def.name] = readPendingRows_(sh);
   });
-  SHEET_DEFS.forEach(function (def) {
-    readSheetRecords_(sheets[def.name]).forEach(function (rec) { rec.brand = def.key; master[rec.id] = rec; });
+  SHEET_DEFS.concat([NEW_TAB]).forEach(function (def) {      // new phones live in Yangi, used ones in their brand tab
+    readSheetRecords_(sheets[def.name]).forEach(function (rec) {
+      if (master[rec.id]) return;
+      rec.brand = def.key === 'new' ? (rec.brandCell === 'iphone' || rec.brandCell === 'samsung' ? rec.brandCell : 'other') : def.key;
+      delete rec.brandCell;
+      master[rec.id] = rec;
+    });
   });
 
   var adopted = mutate(master) || []; // caller adds/updates/removes records in place; may return records it adopted from the sheet
@@ -1274,9 +1291,8 @@ function applyChangeAndRewriteAll_(mutate) {
     if (!rec) return;
     var brand = buckets[rec.brand] ? rec.brand : 'other';
     rec.brand = brand;
-    buckets[brand].push(rec);
     everything.push(rec);
-    if (rec.isNew) fresh.push(rec);
+    if (rec.isNew) fresh.push(rec); else buckets[brand].push(rec);
   });
 
   function write(def, items, fns) {
@@ -1377,6 +1393,7 @@ function exportAllData_(ss) {
   ss = ss || SpreadsheetApp.getActiveSpreadsheet();
   var records = [];
   var unidentified = [];
+  var seenIds = {};
   allTabs_().forEach(function (def) {
     var sh = ss.getSheetByName(def.name);
     if (!sh) return;
@@ -1395,7 +1412,12 @@ function exportAllData_(ss) {
         buyer: row[13] || '', buyerPhone: row[14] || '',
         isNew: def.key === 'new' || row[15] === 'Yangi' || isNewModel_(model)
       };
-      if (id) { if (isBrandTab) records.push(rec); }       // Barcha / Yangi only repeat the brand tabs
+      if (id) {
+        if (isBrandTab || def.key === 'new') {              // Barcha only repeats the others
+          if (def.key === 'new') rec.brand = (row[16] === 'iphone' || row[16] === 'samsung') ? row[16] : 'other';
+          if (!seenIds[id]) { seenIds[id] = true; records.push(rec); }
+        }
+      }
       else { rec.sheetName = def.name; rec.sheetRow = idx + 2; unidentified.push(rec); }
     });
   });
@@ -1435,8 +1457,8 @@ function doGet(e) {
       iphone: {search:"", status:"all", gen:"all"},
       samsung:{search:"", status:"all", gen:"all"},
       other:  {search:"", status:"all"},
-      all:    {search:"", status:"all"},
-      new:    {search:"", status:"all"}
+      all:    {search:"", status:"all", type:"all"},
+      new:    {search:"", status:"all", type:"all"}
     },
     editingId: null,
     editingBrand: "iphone",
@@ -1686,6 +1708,14 @@ function doGet(e) {
     return p[0]+"-"+p[1];
   }
   function isNewPhone(p){ return !!(p && (p.isNew || /NEW/i.test(p.model||""))); }
+  /* New phones live ONLY in "Yangi Telefonlar" - they are not repeated in the iPhone / Samsung / Boshqa lists. */
+  var TYPE_TESTS = {
+    iphone:  function(p){ return p.brand==="iphone"  && !isNewPhone(p); },
+    samsung: function(p){ return p.brand==="samsung" && !isNewPhone(p); },
+    other:   function(p){ return p.brand==="other"   && !isNewPhone(p); },
+    "new":   function(p){ return isNewPhone(p); }
+  };
+  var TYPE_LABELS = {iphone:"iPhone", samsung:"Samsung", other:"Boshqa", "new":"Yangi"};
   function profitOf(p){
     if(p.sellPrice==null || p.buyPrice==null) return null;
     return p.sellPrice - p.buyPrice;
@@ -2132,7 +2162,14 @@ function doGet(e) {
     } else if(brand==="samsung"){
       genChips = '<div class="chip-row" id="genChips-samsung" style="margin-top:8px"></div>';
     }
-    var statusChips = VIRTUAL_BRANDS.indexOf(brand)!==-1 ? "" :
+    var typeChips = VIRTUAL_BRANDS.indexOf(brand)===-1 ? "" :
+        '<div class="chip-row" id="typeChips-'+brand+'" style="margin-top:8px">'+
+          '<button class="chip active" data-type="all">Barcha turlar</button>'+
+          '<button class="chip" data-type="iphone">iPhone</button>'+
+          '<button class="chip" data-type="samsung">Samsung</button>'+
+          '<button class="chip" data-type="other">Boshqa</button>'+
+        '</div>';
+    var statusChips =
         '<div class="chip-row" id="chips-'+brand+'">'+
           '<button class="chip active" data-status="all">Hammasi</button>'+
           '<button class="chip" data-status="stock">Sotilmagan</button>'+
@@ -2151,6 +2188,7 @@ function doGet(e) {
         '</div>'+
         statusChips+
         genChips+
+        typeChips+
       '</div>'+
       '<div class="table-wrap">'+
         '<div class="table-scroll">'+
@@ -2177,7 +2215,8 @@ function doGet(e) {
     var list;
     if(brand==="all") list = state.phones.slice();
     else if(brand==="new") list = state.phones.filter(isNewPhone);
-    else list = state.phones.filter(function(p){ return p.brand===brand; });
+    else list = state.phones.filter(TYPE_TESTS[brand]);
+    if((brand==="all" || brand==="new") && st.type && st.type!=="all") list = list.filter(function(p){ return p.brand===st.type; });
     if(st.status!=="all") list = list.filter(function(p){ return p.status===st.status; });
     if(brand==="iphone" && st.gen && st.gen!=="all"){
       list = list.filter(function(p){ return iphoneGeneration(iphoneParty(p.model))===st.gen; });
@@ -2242,7 +2281,7 @@ function doGet(e) {
     var genRow = document.getElementById("genChips-samsung");
     if(!genRow) return;
     var st = state.sec.samsung;
-    var all = state.phones.filter(function(p){ return p.brand==="samsung"; });
+    var all = state.phones.filter(TYPE_TESTS.samsung);
     var gens = {};
     all.forEach(function(p){
       var g = samsungGenAndParty(p.model).gen;
@@ -2354,7 +2393,7 @@ function doGet(e) {
     if(countEl){
       if(brand==="all") countEl.textContent = state.phones.length;
       else if(brand==="new") countEl.textContent = state.phones.filter(isNewPhone).length;
-      else countEl.textContent = state.phones.filter(function(p){return p.brand===brand;}).length;
+      else countEl.textContent = state.phones.filter(TYPE_TESTS[brand]).length;
     }
   }
 
@@ -2370,6 +2409,17 @@ function doGet(e) {
         this.querySelectorAll(".chip").forEach(function(c){ c.classList.remove("active"); });
         chip.classList.add("active");
         state.sec[brand].status = chip.getAttribute("data-status");
+        renderSection(brand);
+      });
+    }
+    var typeRow = document.getElementById("typeChips-"+brand);
+    if(typeRow){
+      typeRow.addEventListener("click", function(e){
+        var chip = e.target.closest(".chip");
+        if(!chip) return;
+        this.querySelectorAll(".chip").forEach(function(c){ c.classList.remove("active"); });
+        chip.classList.add("active");
+        state.sec[brand].type = chip.getAttribute("data-type");
         renderSection(brand);
       });
     }
@@ -2408,11 +2458,12 @@ function doGet(e) {
         '<div class="kpi-sub">'+esc(k.sub)+'</div></div>';
     }).join("");
 
-    document.getElementById("brandRow").innerHTML = BRANDS.map(function(b){
-      var bl = all.filter(function(p){return p.brand===b;});
+    document.getElementById("brandRow").innerHTML = ["iphone","samsung","new","other"].map(function(b){
+      var bl = all.filter(TYPE_TESTS[b]);
+      var nm = b==="new" ? "Yangi Telefonlar" : BRAND_LABEL[b];
       return '<div class="brand-card" data-goto="'+b+'">'+
-        '<div class="brand-icon '+b+'">'+BRAND_LABEL[b].slice(0,2).toUpperCase()+'</div>'+
-        '<div><div class="brand-card-name">'+BRAND_LABEL[b]+'</div>'+
+        '<div class="brand-icon '+(b==="new"?"other":b)+'">'+(b==="new"?"YA":BRAND_LABEL[b].slice(0,2).toUpperCase())+'</div>'+
+        '<div><div class="brand-card-name">'+nm+'</div>'+
         '<div class="brand-card-meta">'+bl.filter(function(p){return p.status==="stock";}).length+' ta omborda</div></div>'+
         '<div class="brand-card-count"><div class="v">'+bl.length+'</div><div class="l">Jami dona</div></div>'+
         '</div>';
@@ -2493,14 +2544,9 @@ function doGet(e) {
     }).join("");
     var profitCard = document.getElementById("profitKpiCard");
     var viewLabel = view.mode==="month" ? view.label : "Joriy oy";
-    if(profitCard) profitCard.onclick = function(){ openSoldListModal(sold, viewLabel); };
+    if(profitCard) profitCard.onclick = function(){ openSoldListModal(sold, viewLabel, "all"); };
 
-    var typeDefs = [
-      {key:"iphone",  label:"iPhone",  test:function(p){return p.brand==="iphone";}},
-      {key:"samsung", label:"Samsung", test:function(p){return p.brand==="samsung";}},
-      {key:"other",   label:"Boshqa",  test:function(p){return p.brand==="other";}},
-      {key:"new",     label:"Yangi",   test:isNewPhone}
-    ];
+    var typeDefs = ["iphone","samsung","new","other"].map(function(k){ return {key:k, label:TYPE_LABELS[k], test:TYPE_TESTS[k]}; });
     document.getElementById("finTypeGrid").innerHTML = typeDefs.map(function(d){
       var soldT = sold.filter(d.test), stockT = stock.filter(d.test);
       var profit = soldT.reduce(function(s,p){ return s+(profitOf(p)||0); },0);
@@ -2523,7 +2569,7 @@ function doGet(e) {
     document.querySelectorAll("#finTypeGrid .type-card").forEach(function(card){
       card.onclick = function(){
         var d = typeDefs.filter(function(x){return x.key===card.getAttribute("data-type");})[0];
-        openSoldListModal(sold.filter(d.test), viewLabel+" · "+(d.key==="new"?"Yangi Telefonlar":d.label));
+        openSoldListModal(sold, viewLabel, d.key);
       };
     });
 
@@ -2581,10 +2627,15 @@ function doGet(e) {
   }
 
   /* ====================== Moliya: sold-phones breakdown modal ====================== */
-  var soldListState = {list:[], label:"", sort:"date"};
+  var soldListState = {list:[], label:"", sort:"date", type:"all"};
   function renderSoldList(){
-    var soldList = soldListState.list, label = soldListState.label;
-    document.getElementById("soldListSub").textContent = label+" — "+soldList.length+" ta telefon sotilgan";
+    var label = soldListState.label + (soldListState.type==="all" ? "" : " · "+(soldListState.type==="new" ? "Yangi Telefonlar" : TYPE_LABELS[soldListState.type]));
+    var soldList = soldListState.type==="all" ? soldListState.list : soldListState.list.filter(TYPE_TESTS[soldListState.type]);
+    var totalProfit = soldList.reduce(function(s,p){ return s+(profitOf(p)||0); },0);
+    document.getElementById("soldListSub").textContent = label+" — "+soldList.length+" ta telefon sotilgan · jami foyda "+fmtMoney(totalProfit);
+    document.querySelectorAll("#soldTypeBar [data-type]").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-type")===soldListState.type);
+    });
     document.querySelectorAll("#soldSortBar [data-sort]").forEach(function(b){
       b.classList.toggle("active", b.getAttribute("data-sort")===soldListState.sort);
     });
@@ -2614,11 +2665,14 @@ function doGet(e) {
       '</tr>';
     }).join("") : '<tr><td colspan="5"><div class="empty-state">Sotilgan telefon yo\'q</div></td></tr>';
   }
-  function openSoldListModal(soldList, label){
-    soldListState = {list:soldList, label:label, sort:"date"};
+  function openSoldListModal(soldList, label, type){
+    soldListState = {list:soldList, label:label, sort:"date", type:type||"all"};
     renderSoldList();
     document.getElementById("soldListOverlay").classList.add("open");
   }
+  document.querySelectorAll("#soldTypeBar [data-type]").forEach(function(b){
+    b.addEventListener("click", function(){ soldListState.type = b.getAttribute("data-type"); renderSoldList(); });
+  });
   document.querySelectorAll("#soldSortBar [data-sort]").forEach(function(b){
     b.addEventListener("click", function(){ soldListState.sort = b.getAttribute("data-sort"); renderSoldList(); });
   });
@@ -3183,7 +3237,7 @@ function doGet(e) {
 
   /* ====================== export (with filename prompt) ====================== */
   function exportRows(brand){
-    var list = brand==="all" ? state.phones.slice() : state.phones.filter(function(p){ return p.brand===brand; });
+    var list = brand==="all" ? state.phones.slice() : state.phones.filter(TYPE_TESTS[brand]);
     list.sort(function(a,b){ return (b.seq||0)-(a.seq||0); });
     var header = ["Model","Brend","IMEI","Holati","Kimdan olindi","Tel(sotuvchi)","Sotib olingan sana","Sotib olingan vaqti","Sotib olingan narx",
       "Kimga sotildi","Tel(xaridor)","Sotilgan sana","Sotilgan vaqti","Sotilgan narx","Foyda","Izoh"];
@@ -3200,7 +3254,7 @@ function doGet(e) {
     var ws = XLSX.utils.aoa_to_sheet([d.header].concat(d.rows));
     ws["!cols"] = d.header.map(function(){ return {wch:16}; });
     var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, brand==="all"?"Barcha":BRAND_LABEL[brand]);
+    XLSX.utils.book_append_sheet(wb, ws, brand==="all"?"Barcha":TYPE_LABELS[brand]);
     var out = XLSX.write(wb, {bookType:"xlsx", type:"array"});
     return new Blob([out]);
   }

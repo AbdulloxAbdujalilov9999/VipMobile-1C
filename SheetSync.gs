@@ -3,16 +3,16 @@
  *
  * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa
  *   Barcha  - every phone (grouped iPhone, then Samsung, then Boshqa)
- *   iPhone / Samsung / Boshqa - one per brand
- *   Yangi   - every phone marked NEW (any brand)
- * A phone appears in Barcha + its brand tab (+ Yangi if it is new).
+ *   iPhone / Samsung / Boshqa - one per brand, USED PHONES ONLY
+ *   Yangi   - every phone marked NEW (any brand) - new phones are NOT repeated in the brand tabs
+ * So a phone is in exactly one of iPhone / Samsung / Yangi / Boshqa, and additionally in Barcha.
  *
  * Inside a tab, phones are grouped by exact model ("17 Pro Max", "S24 Ultra", ...),
  * newest-first, with a blank row between groups. Rows are in three sections
  * top-to-bottom: not-sold, then Band, then Sotilgan at the very bottom
  * (this matches the app's own ordering).
  *
- * Columns A (ID), B (Status) and P (Yangi flag) are internal bookkeeping and stay hidden -
+ * Columns A (ID), B (Status), P (Yangi flag) and Q (Brand) are internal bookkeeping and stay hidden -
  * everything from column C to O is the real visible data, starting with "Kimdan olindi".
  *
  * You can type a new phone into ANY tab (no ID needed): the platform picks it up within a minute.
@@ -42,7 +42,7 @@ var HEADERS = [
   "Kimdan olindi", 'Uning raqami', 'Telefon nomi', 'Karobka', 'IMEI',
   "Sotib olingan sana", "Sotib olingan vaqti", 'Sotilgan sana', 'Sotilgan vaqti',
   "Sotib olingan narx", 'Sotilgan narx',
-  'Kimga sotildi', 'Xaridor raqami', 'Yangi'
+  'Kimga sotildi', 'Xaridor raqami', 'Yangi', 'Brand'
 ];
 var DATE_FORMAT = 'dd/mm/yy';
 
@@ -167,7 +167,7 @@ function getOrCreateSheet_(name, color) {
 /** Older sheets only have 15 columns / no "Yangi" header: bring them up to date once. */
 function ensureHeader_(sh, color) {
   var ok = false;
-  try { ok = sh.getMaxColumns() >= HEADERS.length && sh.getRange(1, HEADERS.length).getValue() === 'Yangi'; } catch (e) { ok = false; }
+  try { ok = sh.getMaxColumns() >= HEADERS.length && sh.getRange(1, HEADERS.length).getValue() === 'Brand'; } catch (e) { ok = false; }
   if (!ok) { try { formatSheet_(sh, color); } catch (e) { Logger.log('ensureHeader ' + e); } }
 }
 function orderTabs_() {
@@ -202,11 +202,11 @@ function formatSheet_(sh, color) {
   safely_(function () { sh.setFrozenRows(1); }, 'freeze header');
 
   safely_(function () {
-    var widths = [40, 60, 150, 110, 260, 70, 170, 100, 70, 100, 70, 100, 100, 170, 120, 50];
+    var widths = [40, 60, 150, 110, 260, 70, 170, 100, 70, 100, 70, 100, 100, 170, 120, 50, 60];
     for (var i = 0; i < widths.length; i++) sh.setColumnWidth(i + 1, widths[i]);
   }, 'column widths');
   safely_(function () { sh.hideColumns(1, 2); }, 'hide id/status columns');
-  safely_(function () { sh.hideColumns(HEADERS.length, 1); }, 'hide Yangi flag column');
+  safely_(function () { sh.hideColumns(HEADERS.length - 1, 2); }, 'hide Yangi flag + Brand columns');
 
   safely_(function () {
     var dataRows = Math.max(1, sh.getMaxRows() - 1);
@@ -228,7 +228,8 @@ function rowFor_(rec) {
     rec.buyDate || '', rec.buyTime || '', rec.sellDate || '', rec.sellTime || '',
     rec.buyPrice != null ? rec.buyPrice : '', rec.sellPrice != null ? rec.sellPrice : '',
     rec.buyer || '', rec.buyerPhone || '',
-    rec.isNew ? 'Yangi' : ''
+    rec.isNew ? 'Yangi' : '',
+    rec.brand || ''
   ];
 }
 function blankRow_() { return HEADERS.map(function () { return ''; }); }
@@ -274,7 +275,8 @@ function readSheetRecords_(sh) {
       sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
       buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
       buyer: row[13] || '', buyerPhone: row[14] || '',
-      isNew: row[15] === 'Yangi' || isNewModel_(row[4])
+      isNew: row[15] === 'Yangi' || isNewModel_(row[4]),
+      brandCell: row[16] || ''
     });
   });
   return out;
@@ -382,8 +384,13 @@ function applyChangeAndRewriteAll_(mutate) {
     sheets[def.name] = sh;
     pending[def.name] = readPendingRows_(sh);
   });
-  SHEET_DEFS.forEach(function (def) {
-    readSheetRecords_(sheets[def.name]).forEach(function (rec) { rec.brand = def.key; master[rec.id] = rec; });
+  SHEET_DEFS.concat([NEW_TAB]).forEach(function (def) {      // new phones live in Yangi, used ones in their brand tab
+    readSheetRecords_(sheets[def.name]).forEach(function (rec) {
+      if (master[rec.id]) return;
+      rec.brand = def.key === 'new' ? (rec.brandCell === 'iphone' || rec.brandCell === 'samsung' ? rec.brandCell : 'other') : def.key;
+      delete rec.brandCell;
+      master[rec.id] = rec;
+    });
   });
 
   var adopted = mutate(master) || []; // caller adds/updates/removes records in place; may return records it adopted from the sheet
@@ -406,9 +413,8 @@ function applyChangeAndRewriteAll_(mutate) {
     if (!rec) return;
     var brand = buckets[rec.brand] ? rec.brand : 'other';
     rec.brand = brand;
-    buckets[brand].push(rec);
     everything.push(rec);
-    if (rec.isNew) fresh.push(rec);
+    if (rec.isNew) fresh.push(rec); else buckets[brand].push(rec);
   });
 
   function write(def, items, fns) {
@@ -509,6 +515,7 @@ function exportAllData_(ss) {
   ss = ss || SpreadsheetApp.getActiveSpreadsheet();
   var records = [];
   var unidentified = [];
+  var seenIds = {};
   allTabs_().forEach(function (def) {
     var sh = ss.getSheetByName(def.name);
     if (!sh) return;
@@ -527,7 +534,12 @@ function exportAllData_(ss) {
         buyer: row[13] || '', buyerPhone: row[14] || '',
         isNew: def.key === 'new' || row[15] === 'Yangi' || isNewModel_(model)
       };
-      if (id) { if (isBrandTab) records.push(rec); }       // Barcha / Yangi only repeat the brand tabs
+      if (id) {
+        if (isBrandTab || def.key === 'new') {              // Barcha only repeats the others
+          if (def.key === 'new') rec.brand = (row[16] === 'iphone' || row[16] === 'samsung') ? row[16] : 'other';
+          if (!seenIds[id]) { seenIds[id] = true; records.push(rec); }
+        }
+      }
       else { rec.sheetName = def.name; rec.sheetRow = idx + 2; unidentified.push(rec); }
     });
   });
