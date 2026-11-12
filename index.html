@@ -124,6 +124,17 @@
   .kpi-value.gold{ color:var(--gold); }
   .kpi-sub{ font-size:12px; color:var(--ink-faint); margin-top:4px; }
 
+  .type-head{ font-size:13px; font-weight:800; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.04em; margin:6px 0 10px; }
+  .type-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:12px; margin-bottom:22px; }
+  .type-card{ cursor:pointer; transition:border-color .15s; }
+  .type-card:hover{ border-color:var(--accent); }
+  .type-card .type-lines{ margin-top:10px; border-top:1px solid var(--border); padding-top:8px; font-size:12.5px; color:var(--ink-dim); }
+  .type-card .type-lines div{ display:flex; justify-content:space-between; gap:8px; padding:2px 0; }
+  .type-card .type-lines b{ color:var(--ink); font-family:'IBM Plex Mono',monospace; font-weight:600; }
+  .sort-bar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 12px; }
+  .sort-bar .sort-label{ font-size:12px; color:var(--ink-dim); font-weight:700; margin-right:2px; }
+  .sort-bar .chip.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .return-note{ background:var(--gold-soft); color:var(--gold); border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.5; margin-bottom:12px; }
   .brand-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:22px; }
   @media (max-width:700px){ .brand-row{ grid-template-columns:1fr; } }
   .brand-card{
@@ -474,6 +485,8 @@
           </div>
           <div id="monthViewBanner" hidden class="setup-banner" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;"></div>
           <div class="kpi-grid" id="finKpiGrid"></div>
+          <div class="type-head">Turlar bo'yicha hisob <span style="text-transform:none; letter-spacing:0; font-weight:600;">— kartani bosing: shu turdagi sotilgan telefonlar ro'yxati</span></div>
+          <div class="type-grid" id="finTypeGrid"></div>
           <div class="panel-grid">
             <div>
               <div class="card">
@@ -577,6 +590,7 @@
     <button class="modal-close" id="closePhoneModal">&times;</button>
     <h2 id="modalTitle">Yangi telefon</h2>
     <div class="modal-sub" id="modalSub">Faqat telefon nomini yozsangiz ham bo'ladi — qolganini keyin to'ldirishingiz mumkin.</div>
+    <div class="return-note" id="returnNote" hidden>Telefon qaytarib olinmoqda. Hamma ma'lumot (xaridor, sotilgan narx, sana) saqlanib turibdi — xohlaganingizni o'zgartiring, so'ng "Saqlash"ni bosing. Holat "Sotilmagan"ga o'tadi (xohlasangiz boshqasini tanlang).</div>
     <form id="phoneForm">
       <div class="form-section-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="20" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg> Telefon haqida</div>
       <div class="form-grid">
@@ -803,6 +817,12 @@
     <button class="modal-close" id="closeSoldListModal">&times;</button>
     <h2>Sotilgan telefonlar</h2>
     <div class="modal-sub" id="soldListSub"></div>
+    <div class="sort-bar" id="soldSortBar">
+      <span class="sort-label">Saralash:</span>
+      <button class="chip active" data-sort="date">Sana (yangi)</button>
+      <button class="chip" data-sort="profitDesc">Foyda: ko'pdan kamga</button>
+      <button class="chip" data-sort="profitAsc">Foyda: kamdan ko'pga</button>
+    </div>
     <div class="table-wrap">
       <div class="table-scroll">
         <table id="soldListTable">
@@ -2141,7 +2161,7 @@ function doGet(e) {
       btn.onclick = function(){ openSoldModal(btn.getAttribute("data-sold")); };
     });
     tbody.querySelectorAll("[data-return]").forEach(function(btn){
-      btn.onclick = function(){ openReturnConfirm(btn.getAttribute("data-return")); };
+      btn.onclick = function(){ openReturnForm(btn.getAttribute("data-return")); };
     });
     tbody.querySelectorAll("[data-band]").forEach(function(btn){
       btn.onclick = function(){ openBandConfirm(btn.getAttribute("data-band")); };
@@ -2289,7 +2309,40 @@ function doGet(e) {
         '<div class="kpi-sub">'+esc(k.sub)+'</div></div>';
     }).join("");
     var profitCard = document.getElementById("profitKpiCard");
-    if(profitCard) profitCard.onclick = function(){ openSoldListModal(sold, view.mode==="month"?view.label:"Joriy oy"); };
+    var viewLabel = view.mode==="month" ? view.label : "Joriy oy";
+    if(profitCard) profitCard.onclick = function(){ openSoldListModal(sold, viewLabel); };
+
+    var typeDefs = [
+      {key:"iphone",  label:"iPhone",  test:function(p){return p.brand==="iphone";}},
+      {key:"samsung", label:"Samsung", test:function(p){return p.brand==="samsung";}},
+      {key:"other",   label:"Boshqa",  test:function(p){return p.brand==="other";}},
+      {key:"new",     label:"Yangi",   test:function(p){return !!p.isNew;}}
+    ];
+    document.getElementById("finTypeGrid").innerHTML = typeDefs.map(function(d){
+      var soldT = sold.filter(d.test), stockT = stock.filter(d.test);
+      var profit = soldT.reduce(function(s,p){ return s+(profitOf(p)||0); },0);
+      var revenue = soldT.reduce(function(s,p){ return s+(p.sellPrice||0); },0);
+      var cost = soldT.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
+      var mg = cost>0 ? (profit/cost*100) : 0;
+      var stockVal = stockT.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
+      var avg = soldT.length ? profit/soldT.length : 0;
+      return '<div class="kpi type-card" data-type="'+d.key+'">'+
+        '<div class="kpi-label">'+(d.key==="new"?'Yangi telefonlar':esc(d.label))+'</div>'+
+        '<div class="kpi-value '+(profit>=0?"success":"danger")+'">'+fmtMoney(profit)+'</div>'+
+        '<div class="kpi-sub">'+soldT.length+' ta sotilgan</div>'+
+        '<div class="type-lines">'+
+          '<div><span>Sotuv summasi</span><b>'+fmtMoney(revenue)+'</b></div>'+
+          '<div><span>Foyda foizi</span><b>'+mg.toFixed(1)+'%</b></div>'+
+          '<div><span>O\'rtacha foyda</span><b>'+fmtMoney(Math.round(avg))+'</b></div>'+
+          '<div><span>Sotilmagan</span><b>'+stockT.length+' ta · '+fmtMoney(stockVal)+'</b></div>'+
+        '</div></div>';
+    }).join("");
+    document.querySelectorAll("#finTypeGrid .type-card").forEach(function(card){
+      card.onclick = function(){
+        var d = typeDefs.filter(function(x){return x.key===card.getAttribute("data-type");})[0];
+        openSoldListModal(sold.filter(d.test), viewLabel+" · "+(d.key==="new"?"Yangi telefonlar":d.label));
+      };
+    });
 
     var byMonth = {};
     all.forEach(function(p){
@@ -2345,9 +2398,21 @@ function doGet(e) {
   }
 
   /* ====================== Moliya: sold-phones breakdown modal ====================== */
-  function openSoldListModal(soldList, label){
+  var soldListState = {list:[], label:"", sort:"date"};
+  function renderSoldList(){
+    var soldList = soldListState.list, label = soldListState.label;
     document.getElementById("soldListSub").textContent = label+" — "+soldList.length+" ta telefon sotilgan";
+    document.querySelectorAll("#soldSortBar [data-sort]").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-sort")===soldListState.sort);
+    });
     var rows = soldList.slice().sort(function(a,b){
+      if(soldListState.sort==="profitDesc" || soldListState.sort==="profitAsc"){
+        var pa = profitOf(a), pb = profitOf(b);
+        if(pa==null && pb==null) return 0;
+        if(pa==null) return 1;
+        if(pb==null) return -1;
+        return soldListState.sort==="profitDesc" ? pb-pa : pa-pb;
+      }
       if(!a.sellDate && !b.sellDate) return 0;
       if(!a.sellDate) return 1;
       if(!b.sellDate) return -1;
@@ -2365,8 +2430,15 @@ function doGet(e) {
         '<td class="mono '+prCls+'" style="font-weight:700;">'+prText+'</td>'+
       '</tr>';
     }).join("") : '<tr><td colspan="5"><div class="empty-state">Sotilgan telefon yo\'q</div></td></tr>';
+  }
+  function openSoldListModal(soldList, label){
+    soldListState = {list:soldList, label:label, sort:"date"};
+    renderSoldList();
     document.getElementById("soldListOverlay").classList.add("open");
   }
+  document.querySelectorAll("#soldSortBar [data-sort]").forEach(function(b){
+    b.addEventListener("click", function(){ soldListState.sort = b.getAttribute("data-sort"); renderSoldList(); });
+  });
   document.getElementById("closeSoldListModal").addEventListener("click", function(){
     document.getElementById("soldListOverlay").classList.remove("open");
   });
@@ -2608,7 +2680,7 @@ function doGet(e) {
     hint.classList.toggle("gold", val==="lent");
   }
   function toggleSoldBlock(){
-    document.getElementById("soldBlock").hidden = document.getElementById("f_status").value !== "sold";
+    document.getElementById("soldBlock").hidden = document.getElementById("f_status").value !== "sold" && !state.returning;
     refreshStatusHint();
   }
   document.getElementById("f_status").addEventListener("change", toggleSoldBlock);
@@ -2632,15 +2704,22 @@ function doGet(e) {
   ["f_sourcePhone","f_buyerPhone","s_buyerPhone"].forEach(bindPhoneFormat);
 
   /* ====================== add/edit modal ====================== */
-  function openPhoneModal(id, brand){
+  function openReturnForm(id){
+    var p = state.phones.find(function(x){return x.id===id;});
+    if(!p) return;
+    openPhoneModal(id, p.brand || "iphone", {returning:true});
+  }
+  function openPhoneModal(id, brand, opts){
+    state.returning = !!(opts && opts.returning);
+    document.getElementById("returnNote").hidden = !state.returning;
     state.editingId = id || null;
     state.editingBrand = brand || "iphone";
     var p = id ? state.phones.find(function(x){return x.id===id;}) : null;
-    document.getElementById("modalTitle").textContent = id ? "Telefonni tahrirlash" : "Yangi "+BRAND_LABEL[state.editingBrand];
+    document.getElementById("modalTitle").textContent = state.returning ? "Telefonni qaytarib olish" : (id ? "Telefonni tahrirlash" : "Yangi "+BRAND_LABEL[state.editingBrand]);
 
     var useBrand = p ? (p.brand||state.editingBrand) : state.editingBrand;
     document.getElementById("f_brand").value = useBrand;
-    document.getElementById("f_status").value = p ? (p.status||"stock") : "stock";
+    document.getElementById("f_status").value = state.returning ? "stock" : (p ? (p.status||"stock") : "stock");
     document.getElementById("f_imei").value = p ? (p.imei||"") : "";
     document.getElementById("f_imeiBox").value = p && p.imeiBox ? "1" : "0";
     document.getElementById("f_isNew").checked = !!(p && p.isNew);
@@ -2701,7 +2780,8 @@ function doGet(e) {
   }
   function closePhoneModal(){
     document.getElementById("phoneOverlay").classList.remove("open");
-    state.editingId = null;
+    state.editingId = null; state.returning = false;
+    document.getElementById("returnNote").hidden = true;
   }
   function buildModelString(brand){
     if(brand==="iphone"){
@@ -2744,6 +2824,7 @@ function doGet(e) {
       sellNote: document.getElementById("f_sellNote").value.trim(),
       updatedAt: new Date().toISOString()
     };
+    if(state.returning && data.status!=="sold") data.returnedAt = new Date().toISOString();
     if(data.status==="sold"){
       var priorForSold = state.editingId ? state.phones.find(function(x){return x.id===state.editingId;}) : null;
       if(!priorForSold || priorForSold.status!=="sold") data.soldAt = new Date().toISOString();
