@@ -1,7 +1,7 @@
 /**
  * VipMobile -> Google Sheet sync endpoint.
  *
- * Tabs: iPhone / Samsung / Boshqa (one per brand) + Telefonlar (every
+ * Tabs: iPhone / Samsung / Boshqa (one per brand) + Band (every
  * currently "Band" phone, across all brands, in one place).
  *
  * Each brand tab is grouped by exact model ("17 Pro Max", "S24 Ultra", ...),
@@ -24,7 +24,8 @@ var SHEET_DEFS = [
   { key: 'samsung', name: 'Samsung', color: '#96682B' },
   { key: 'other',   name: 'Boshqa',  color: '#3F4A5A' }
 ];
-var BAND_SHEET_NAME = 'Telefonlar';
+var BAND_SHEET_NAME = 'Band';
+var OLD_BAND_SHEET_NAME = 'Telefonlar'; // the tab used to be called this; it is renamed in place so nothing is lost
 var BAND_SHEET_COLOR = '#4C6B5A';
 
 // Column C onward - what the user actually sees. A (ID) and B (Status) are hidden bookkeeping.
@@ -136,6 +137,10 @@ function samsungPartySortKey_(party, gen) {
 function getOrCreateSheet_(name, color) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
+  if (!sh && name === BAND_SHEET_NAME) {
+    var oldBand = ss.getSheetByName(OLD_BAND_SHEET_NAME);
+    if (oldBand) { oldBand.setName(BAND_SHEET_NAME); return oldBand; }
+  }
   if (!sh) {
     sh = ss.insertSheet(name);
     try { formatSheet_(sh, color); } catch (e) { Logger.log('format ' + name + ' failed: ' + e); }
