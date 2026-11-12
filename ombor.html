@@ -778,11 +778,12 @@
   <div class="modal small">
     <button class="modal-close" id="closeMonthModal">&times;</button>
     <h2 id="monthModalTitle">Oy qo'shish</h2>
-    <div class="modal-sub">Oy yakunlanganda Google Sheet faylidan nusxa oling, unga yangi Apps Script joylashtirib deploy qiling, so'ng ikkala havolani shu yerga joylashtiring.</div>
+    <div class="modal-sub">Oy yakunlanganda Google Sheet faylidan nusxa oling va shu nusxaning havolasini kiriting. Alohida Apps Script kerak emas — asosiy skript o'qiydi.</div>
     <form id="monthForm">
       <div class="field"><label>Oy nomi</label><input type="text" id="m_label" placeholder="Masalan: Sentyabr 2026" required></div>
-      <div class="field"><label>Apps Script Web App havolasi</label><input type="text" id="m_scriptUrl" placeholder="https://script.google.com/macros/s/…/exec" required></div>
-      <div class="field"><label>Google Sheet havolasi (ixtiyoriy)</label><input type="text" id="m_sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…"></div>
+      <div class="field"><label>Google Sheet havolasi</label><input type="text" id="m_sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…"></div>
+      <div class="field"><label>Apps Script havolasi (ixtiyoriy)</label><input type="text" id="m_scriptUrl" placeholder="Bo'sh qoldirsangiz, asosiy skript ishlatiladi">
+        <div class="status-hint">Bitta skript hamma oylar uchun yetadi — faqat shu oyning Sheet havolasini kiriting.</div></div>
       <div class="form-actions">
         <button type="button" class="btn lg danger ghost" id="deleteMonthBtn" hidden style="margin-right:auto; color:var(--danger); border-color:var(--danger);">O'chirish</button>
         <button type="button" class="btn lg" id="cancelMonthBtn">Bekor qilish</button>
@@ -1225,11 +1226,12 @@ function doPost(e) {
  *   (b) two-way sync: find rows added directly in the Sheet, create a matching
  *       Firestore record for each, and let the next normal sync fold them in
  *       (which also wipes the old ID-less row so there's no duplicate). */
-function exportAllData_() {
+function exportAllData_(ss) {
+  ss = ss || SpreadsheetApp.getActiveSpreadsheet();
   var records = [];
   var unidentified = [];
   SHEET_DEFS.forEach(function (def) {
-    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(def.name);
+    var sh = ss.getSheetByName(def.name);
     if (!sh) return;
     var lastRow = sh.getLastRow();
     if (lastRow < 2) return;
@@ -1255,8 +1257,24 @@ function exportAllData_() {
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
+/** One script can read ANY of your monthly Sheets: the app passes the month's Sheet ID.
+ *  Only spreadsheets that contain the VipMobile tabs (iPhone/Samsung/Boshqa) are served. */
+function exportById_(id) {
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return jsonOut_({ ok: false, error: 'bad sheet id' });
+  var ss;
+  try { ss = SpreadsheetApp.openById(id); }
+  catch (err) { return jsonOut_({ ok: false, error: 'cannot open that Sheet (is it yours / shared with this account?)' }); }
+  var hasTabs = SHEET_DEFS.some(function (d) { return !!ss.getSheetByName(d.name); });
+  if (!hasTabs) return jsonOut_({ ok: false, error: 'that Sheet has no iPhone/Samsung/Boshqa tabs' });
+  return exportAllData_(ss);
+}
+function jsonOut_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
 function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
+  if (action === 'export' && e.parameter.sheetId) return exportById_(e.parameter.sheetId);
   if (action === 'export') return exportAllData_();
   return ContentService.createTextOutput('VipMobile sync endpoint is running.');
 }
@@ -1678,12 +1696,16 @@ function doGet(e) {
   }
 
   /** GET the Apps Script's ?action=export JSON (records + unidentified rows) from any sheet-sync URL. */
-  async function fetchSheetExport(url){
+  async function fetchSheetExport(url, sheetId){
     var sep = url.indexOf("?")===-1 ? "?" : "&";
-    var res = await fetch(url+sep+"action=export");
+    var res = await fetch(url+sep+"action=export"+(sheetId?"&sheetId="+encodeURIComponent(sheetId):""));
     if(!res.ok) throw new Error("HTTP "+res.status);
-    return res.json();
+    var json = await res.json();
+    if(json && json.ok===false) throw new Error(json.error || "Sheetni o'qib bo'lmadi");
+    if(sheetId && json && json.records===undefined) throw new Error("Apps Script eski versiya — Moliya > Copy SheetSync bilan yangilang");
+    return json;
   }
+  function sheetIdFromUrl(u){ var m = String(u||"").match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/); return m ? m[1] : ""; }
 
   var sheetCheckInFlight = false;
   var sheetImportedKeys = {};
@@ -2382,8 +2404,9 @@ function doGet(e) {
     var label = document.getElementById("m_label").value.trim();
     var scriptUrl = document.getElementById("m_scriptUrl").value.trim();
     var sheetUrl = document.getElementById("m_sheetUrl").value.trim();
-    if(!label || !scriptUrl){ toast("Oy nomi va Apps Script havolasi shart", true); return; }
-    if(!/^https?:\/\//i.test(scriptUrl) || (sheetUrl && !/^https?:\/\//i.test(sheetUrl))){ toast("Havola http:// yoki https:// bilan boshlanishi kerak", true); return; }
+    if(!label || (!scriptUrl && !sheetUrl)){ toast("Oy nomi va Sheet havolasi (yoki Apps Script havolasi) shart", true); return; }
+    if((scriptUrl && !/^https?:\/\//i.test(scriptUrl)) || (sheetUrl && !/^https?:\/\//i.test(sheetUrl))){ toast("Havola http:// yoki https:// bilan boshlanishi kerak", true); return; }
+    if(!scriptUrl && !sheetIdFromUrl(sheetUrl)){ toast("Bu Google Sheet havolasiga o'xshamaydi (…/spreadsheets/d/… bo'lishi kerak)", true); return; }
     var months = (state.financeMonths||[]).slice();
     if(state.editingMonthId){
       var idx = months.findIndex(function(x){return x.id===state.editingMonthId;});
@@ -2416,7 +2439,15 @@ function doGet(e) {
     renderFinance();
     renderMonthsList();
     try{
-      var json = await fetchSheetExport(m.scriptUrl);
+      var json;
+      if(m.scriptUrl){
+        json = await fetchSheetExport(m.scriptUrl);
+      } else {
+        var sid = sheetIdFromUrl(m.sheetUrl);
+        if(!sid) throw new Error("Sheet havolasi noto'g'ri");
+        if(!activeSheetSyncUrl()) throw new Error("Asosiy Apps Script havolasi saqlanmagan (Moliya > Google Sheet)");
+        json = await fetchSheetExport(activeSheetSyncUrl(), sid);
+      }
       state.financeView = {mode:"month", id:m.id, label:m.label, sheetUrl:m.sheetUrl, loading:false, records: json.records||[]};
     }catch(e){
       state.financeView = {mode:"month", id:m.id, label:m.label, sheetUrl:m.sheetUrl, loading:false, error: e.message};

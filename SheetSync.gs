@@ -383,11 +383,12 @@ function doPost(e) {
  *   (b) two-way sync: find rows added directly in the Sheet, create a matching
  *       Firestore record for each, and let the next normal sync fold them in
  *       (which also wipes the old ID-less row so there's no duplicate). */
-function exportAllData_() {
+function exportAllData_(ss) {
+  ss = ss || SpreadsheetApp.getActiveSpreadsheet();
   var records = [];
   var unidentified = [];
   SHEET_DEFS.forEach(function (def) {
-    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(def.name);
+    var sh = ss.getSheetByName(def.name);
     if (!sh) return;
     var lastRow = sh.getLastRow();
     if (lastRow < 2) return;
@@ -413,8 +414,24 @@ function exportAllData_() {
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
+/** One script can read ANY of your monthly Sheets: the app passes the month's Sheet ID.
+ *  Only spreadsheets that contain the VipMobile tabs (iPhone/Samsung/Boshqa) are served. */
+function exportById_(id) {
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return jsonOut_({ ok: false, error: 'bad sheet id' });
+  var ss;
+  try { ss = SpreadsheetApp.openById(id); }
+  catch (err) { return jsonOut_({ ok: false, error: 'cannot open that Sheet (is it yours / shared with this account?)' }); }
+  var hasTabs = SHEET_DEFS.some(function (d) { return !!ss.getSheetByName(d.name); });
+  if (!hasTabs) return jsonOut_({ ok: false, error: 'that Sheet has no iPhone/Samsung/Boshqa tabs' });
+  return exportAllData_(ss);
+}
+function jsonOut_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
 function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
+  if (action === 'export' && e.parameter.sheetId) return exportById_(e.parameter.sheetId);
   if (action === 'export') return exportAllData_();
   return ContentService.createTextOutput('VipMobile sync endpoint is running.');
 }
