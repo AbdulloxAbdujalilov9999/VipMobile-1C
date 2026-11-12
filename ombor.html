@@ -505,20 +505,6 @@
                 </p>
               </div>
               <div class="card">
-                <h3>AI yordamchi <span id="aiKeyStatus" class="hint"></span></h3>
-                <div class="field" style="margin-bottom:12px;">
-                  <label>Anthropic API kaliti</label>
-                  <input type="password" id="aiKeyInput" placeholder="sk-ant-…" autocomplete="off">
-                </div>
-                <div class="data-actions">
-                  <button class="btn lg primary" id="aiKeySaveBtn">Kalitni saqlash</button>
-                  <button class="btn lg" id="aiKeyClearBtn">O'chirish</button>
-                </div>
-                <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
-                  Kalit faqat shu qurilmadagi brauzeringizda saqlanadi (kodga yoki GitHub'ga yozilmaydi). Excel yuklashda "AI bilan tartiblash" tugmasi fayldagi qatorlarni Claude'ga yuborib, ma'lumotni to'g'ri ustunlarga ajratib beradi. Har bir qurilmada bir marta kiritiladi.
-                </p>
-              </div>
-              <div class="card">
                 <h3>Google Sheet bilan sinxronlash <span id="sheetSyncStatus" class="hint"></span></h3>
                 <div id="sheetSyncBanner" class="setup-banner" style="margin-bottom:14px;"></div>
                 <div class="field" style="margin-bottom:12px;">
@@ -560,6 +546,20 @@
                 </div>
                 <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
                   Har oy "Yangi oy boshlash"dan oldin Google Sheet faylidan nusxa oling (Fayl → Nusxa yarating), unga yangi Apps Script joylashtiring va shu havolalarni shu yerga qo'shing — o'sha oyning to'liq hisobotini istalgan vaqt qayta ko'rishingiz mumkin bo'ladi.
+                </p>
+              </div>
+              <div class="card">
+                <h3>AI yordamchi <span id="aiKeyStatus" class="hint"></span></h3>
+                <div class="field" style="margin-bottom:12px;">
+                  <label>Anthropic API kaliti</label>
+                  <input type="password" id="aiKeyInput" placeholder="sk-ant-…" autocomplete="off">
+                </div>
+                <div class="data-actions">
+                  <button class="btn lg primary" id="aiKeySaveBtn">Kalitni saqlash</button>
+                  <button class="btn lg" id="aiKeyClearBtn">O'chirish</button>
+                </div>
+                <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
+                  Kalit faqat shu qurilmadagi brauzeringizda saqlanadi (kodga yoki GitHub'ga yozilmaydi). Excel yuklashda "AI bilan tartiblash" tugmasi fayldagi qatorlarni Claude'ga yuborib, ma'lumotni to'g'ri ustunlarga ajratib beradi. Har bir qurilmada bir marta kiritiladi.
                 </p>
               </div>
             </div>
@@ -1566,7 +1566,7 @@ function doGet(e) {
   }
   function classifyBrand(model){
     var m = (model||"").toUpperCase();
-    if(/\b(IPAD|MAC\s*BOOK|AIRPODS?|APPLE\s*WATCH|XIAOMI|REDMI|POCO|HONOR|HUAWEI|NOKIA|ONE\s*PLUS|MEIZU|ZTE|ASUS|VIVO|OPPO|REALME|LENOVO|PIXEL|\bLG\b|SONY|MOTOROLA|TECNO|INFINIX|ITEL)\b/.test(m)) return "other";
+    if(/\b(IPAD|MAC\s*BOOK|AIRPODS?|APPLE\s*WATCH|XIAOMI|REDMI|POCO|HONOR|HUAWEI|NOKIA|ONE\s*PLUS|MEIZU|ZTE|ASUS|VIVO|OPPO|REALME|LENOVO|PIXEL|\bLG\b|SONY|MOTOROLA|TECNO|INFINIX|ITEL|TECH)\b/.test(m)) return "other";
     if(/IPHONE/.test(m)) return "iphone";
     if(/^\s*(6S?|7|8|X[RS]?|SE\d?|1[1-8])\s*(PLUS|PRO\s*MAX|PRO|MAX|MINI|AIR)?(\s|$)/.test(m)) return "iphone";
     if(/^\s*(GALAXY\s*)?(S\s?\d{1,3}\+*|A\s?\d{1,3}|M\s?\d{1,3}|NOTE\s?\d{0,3}|Z\s?(FOLD|FLIP)\d?|TAB\s?[A-Z0-9]*)/.test(m)) return "samsung";
@@ -3097,9 +3097,9 @@ function doGet(e) {
   var MAP_FIELDS = [
     ["", "— E'tiborsiz —"], ["model","Model / tavsif"], ["imei","IMEI"], ["imeiBox","Quti/karobka"],
     ["source","Kimdan olindi"], ["sourcePhone","Uning telefoni"],
-    ["buyDate","Sotib olingan sana"], ["buyPrice","Sotib olingan narx"],
+    ["buyDate","Sotib olingan sana"], ["buyTime","Sotib olingan vaqt"], ["buyPrice","Sotib olingan narx"],
     ["buyer","Kimga sotildi"], ["buyerPhone","Uning telefoni (xaridor)"],
-    ["sellDate","Sotilgan sana"], ["sellPrice","Sotilgan narx"], ["note","Izoh"]
+    ["sellDate","Sotilgan sana"], ["sellTime","Sotilgan vaqt"], ["sellPrice","Sotilgan narx"], ["note","Izoh"]
   ];
 
   function openImportModal(){
@@ -3127,11 +3127,51 @@ function doGet(e) {
   var IMPORT_DATE_RE = /^\d{1,2}\s*[.,\/\-]\s*\d{1,2}\s*[.,\/\-]\s*\d{2,4}\.?,?$/;
   var IMPORT_BOX_RE = /^(BOR|YO'?Q)\.?$/i;
   var IMPORT_MODEL_RE = /(\d+\s*GB|\b[SAM]\s?\d{2}\b|\b\d{2}\s*(PRO|MAX|PLUS|MINI|AIR)\b|\b(PRO|MAX|ULTRA|PLUS)\b|NOTE|REDMI|XIAOMI|HONOR|HUAWEI|IPHONE|SAMSUNG|GALAXY|FLIP|FOLD|\bN*NEW+\b)/i;
+  /* "HH:MM" from a time cell: Excel time fraction, "14:35", "8.26", "9+00" ... Returns "" if it is not a real time. */
+  var IMPORT_TIME_RE = /^(\d{1,2})\s*[:.+;,\-]\s*(\d{1,2})$/;
+  function parseFlexTime(v){
+    if(v===null || v===undefined || v==="") return "";
+    var h, m;
+    if(typeof v === "number"){
+      if(!(v>0 && v<1)) return "";
+      var tot = Math.round(v*1440); h = Math.floor(tot/60) % 24; m = tot % 60;
+    } else {
+      var mt = String(v).trim().match(IMPORT_TIME_RE);
+      if(!mt) return "";
+      h = +mt[1]; m = +mt[2];
+    }
+    if(h>23 || m>59 || (h===0 && m===0)) return "";
+    return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+  }
+  /* Our own exports (Sheet tabs, cleaned files) have real header names - trust those over guessing. */
+  var HEADER_FIELDS = {
+    "kimdan olindi":"source", "uning raqami":"sourcePhone", "telefon nomi":"model", "karobka":"imeiBox", "imei":"imei",
+    "sotib olingan sana":"buyDate", "sotib olingan vaqti":"buyTime", "sotib olingan vaqt":"buyTime",
+    "sotilgan sana":"sellDate", "sotilgan vaqti":"sellTime", "sotilgan vaqt":"sellTime",
+    "sotib olingan narx":"buyPrice", "sotilgan narx":"sellPrice", "kimga sotildi":"buyer", "xaridor raqami":"buyerPhone", "izoh":"note"
+  };
+  function headerMapping(row){
+    var map = {}, hits = 0;
+    (row||[]).forEach(function(v, c){
+      var key = String(v==null?"":v).trim().toLowerCase().replace(/\s+/g," ");
+      if(HEADER_FIELDS[key]){ map[c] = HEADER_FIELDS[key]; hits++; }
+      else if(key) map[c] = "";                          // other named columns (KR, Tuzatildi, Manba ...) are ignored
+    });
+    return hits>=8 ? map : null;
+  }
+  var HEADER_WORD_RE = /kimdan|olingan|sotilgan|imei|nomi\b|telefon|narx|sana|vaqt|karobka|xaridor/i;
+  function looksLikeHeader(row){
+    var cells = (row||[]).filter(function(v){ return v!==null && v!==undefined && String(v).trim()!==""; });
+    if(cells.length<3) return false;
+    var hits = cells.filter(function(v){ return typeof v==="string" && HEADER_WORD_RE.test(v) && !/\d{5,}/.test(v); }).length;
+    return hits>=3;
+  }
   function guessMapping(rows, startRow, colCount){
+    if(startRow>0){ var hm = headerMapping(rows[startRow-1]); if(hm) return hm; }
     var data = rows.slice(startRow, Math.min(startRow+400, rows.length));
     var stats = [];
     for(var c=0;c<colCount;c++){
-      var s = {idx:c, n:0, imei:0, date:0, box:0, price:0, phone:0, model:0, text:0, kr:0, lenSum:0};
+      var s = {idx:c, n:0, imei:0, date:0, box:0, price:0, phone:0, model:0, text:0, kr:0, time:0, lenSum:0};
       data.forEach(function(r){
         var v = r[c];
         if(v===null || v===undefined || String(v).trim()==="") return;
@@ -3141,10 +3181,12 @@ function doGet(e) {
         if(typeof v === "number"){
           if(v>15000 && v<80000){ s.date++; return; }
           if(v>=10 && v<=30000 && Math.floor(v)===v){ s.price++; return; }
-          return;                                          // times / decimals / junk
+          if(v>0 && v<1){ s.time++; return; }               // Excel time cell
+          return;                                          // decimals / junk
         }
         var digits = str.replace(/\D/g,"");
         if(IMPORT_DATE_RE.test(str)){ s.date++; return; }
+        if(IMPORT_TIME_RE.test(str) && parseFlexTime(str)){ s.time++; return; }
         if(IMPORT_BOX_RE.test(str)){ s.box++; return; }
         if(/^KR\.?$/i.test(str)){ s.kr++; return; }
         if(/^[\d\s\-+.]+$/.test(str) && digits.length>=13){ s.imei++; return; }
@@ -3191,6 +3233,16 @@ function doGet(e) {
       var bp = priceCols[0]; assign(bp, "buyPrice");
       var sp = (bp+1<colCount && !used[bp+1] && (empty(bp+1) || frac(stats[bp+1],"price")>=0.7)) ? bp+1 : priceCols[1];
       if(sp!==undefined && !used[sp]) assign(sp, "sellPrice");
+    }
+
+    var timeCols = stats.filter(function(s){ return !used[s.idx] && s.n>=3 && frac(s,"time")>=0.5; }).map(function(s){ return s.idx; });
+    if(timeCols.length>=2){ assign(timeCols[0], "buyTime"); assign(timeCols[timeCols.length-1], "sellTime"); }
+    else if(timeCols.length===1){
+      var bdCol = -1, sdCol = -1;
+      Object.keys(mapping).forEach(function(k){ if(mapping[k]==="buyDate") bdCol = +k; if(mapping[k]==="sellDate") sdCol = +k; });
+      var tc = timeCols[0];
+      var dB = bdCol<0 ? 99 : Math.abs(tc-bdCol), dS = sdCol<0 ? 99 : Math.abs(tc-sdCol);
+      assign(tc, dS<dB ? "sellTime" : "buyTime");
     }
 
     var krCol = bestBy("kr", 0.8);
@@ -3243,6 +3295,10 @@ function doGet(e) {
     allImportFiles().forEach(function(pf, fi){ buildRecordsFromParsed(pf).forEach(function(r){ r._f = fi; all.push(r); }); });
     return all;
   }
+  function isoFromDateTime(dateStr, timeStr){
+    var d = dateStr.split("-"), tm = timeStr.split(":");
+    return new Date(+d[0], +d[1]-1, +d[2], +tm[0], +tm[1]).toISOString();
+  }
   function buildRecordsFromParsed(pf){
     if(pf.aiRecords) return pf.aiRecords.map(function(r){ return Object.assign({}, r); });
     var rows = pf.rows, startRow = pf.startRow, mapping = pf.mapping;
@@ -3259,11 +3315,15 @@ function doGet(e) {
         var raw = row[+c];
         if(field==="buyDate" || field==="sellDate") rec[field] = parseFlexDate(raw);
         else if(field==="buyPrice" || field==="sellPrice") rec[field] = parseFlexNum(raw);
+        else if(field==="buyTime" || field==="sellTime") rec[field] = parseFlexTime(raw);
         else if(field==="imeiBox") rec[field] = /^BOR/i.test(String(raw||"").trim());
         else if(field==="note"){ var s=String(raw||"").trim(); if(s) rec.note = rec.note ? rec.note+"; "+s : s; }
         else rec[field] = String(raw==null?"":raw).trim();
       });
       if(!rec.model && !rec.imei) continue;
+      if(rec.buyTime && rec.buyDate){ rec.createdAt = isoFromDateTime(rec.buyDate, rec.buyTime); }
+      if(rec.sellTime && rec.sellDate){ rec.soldAt = isoFromDateTime(rec.sellDate, rec.sellTime); }
+      delete rec.buyTime; delete rec.sellTime;
       rec.brand = classifyBrand(rec.model);
       rec.status = rec.sellPrice!=null ? "sold" : ((rec.buyer||rec.sellDate) ? "lent" : "stock");
       rec.isNew = /NEW/i.test(rec.model);
@@ -3349,21 +3409,30 @@ function doGet(e) {
     document.getElementById("runImportBtn").disabled = records.length===0 || !phonesCol;
   }
 
+  /* Reads EVERY sheet of a workbook (a cleaned file has iPhone / Samsung / Boshqa tabs) and
+     returns one parsed entry per non-empty sheet. */
   function parseWorkbookBuffer(buffer, name){
     try{
       var wb = XLSX.read(new Uint8Array(buffer), {type:"array"});
-      var ws = wb.Sheets[wb.SheetNames[0]];
-      var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:"", raw:true});
-      var colCount = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
-      var startRow = 0;
-      for(var i=0;i<Math.min(10,rows.length);i++){
-        var nonEmptyVals = rows[i].filter(function(v){ return v!==null && v!==undefined && String(v).trim()!==""; });
-        if(nonEmptyVals.length < Math.max(3, colCount*0.4)) continue;
-        var genericHits = nonEmptyVals.filter(function(v){ return /^(column|col|field|unnamed)\s*\d*$/i.test(String(v).trim()); }).length;
-        if(genericHits >= nonEmptyVals.length*0.5) continue; // looks like an auto-generated header row, not real data
-        startRow = i; break;
-      }
-      return {name: name||"fayl", rows: rows, colCount: colCount, startRow: startRow, mapping: guessMapping(rows, startRow, colCount), aiRecords: null};
+      var out = [];
+      wb.SheetNames.forEach(function(sn){
+        var ws = wb.Sheets[sn];
+        var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:"", raw:true});
+        var hasData = rows.some(function(r, i){ return i>0 && r.some(function(v){ return v!==null && v!==undefined && String(v).trim()!==""; }); });
+        if(!hasData && out.length) return;
+        var colCount = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
+        var startRow = 0;
+        for(var i=0;i<Math.min(10,rows.length);i++){
+          var nonEmptyVals = rows[i].filter(function(v){ return v!==null && v!==undefined && String(v).trim()!==""; });
+          if(nonEmptyVals.length < Math.max(3, colCount*0.4)) continue;
+          var genericHits = nonEmptyVals.filter(function(v){ return /^(column|col|field|unnamed)\s*\d*$/i.test(String(v).trim()); }).length;
+          if(genericHits >= nonEmptyVals.length*0.5) continue; // looks like an auto-generated header row, not real data
+          startRow = looksLikeHeader(rows[i]) ? i+1 : i; break;
+        }
+        var label = (name||"fayl") + (wb.SheetNames.length>1 ? " \u2014 "+sn : "");
+        out.push({name: label, rows: rows, colCount: colCount, startRow: startRow, mapping: guessMapping(rows, startRow, colCount), aiRecords: null});
+      });
+      return out;
     }catch(err){
       toast((name||"Fayl")+" o'qishda xatolik: "+err.message, true);
       return null;
@@ -3381,9 +3450,9 @@ function doGet(e) {
     renderMapTable();
   }
   function loadWorkbookFromBuffer(buffer){
-    var pf = parseWorkbookBuffer(buffer, "havola");
-    if(!pf) return false;
-    setImportFiles([pf]); return true;
+    var pfs = parseWorkbookBuffer(buffer, "havola");
+    if(!pfs || !pfs.length) return false;
+    setImportFiles(pfs); return true;
   }
   document.getElementById("importFile").addEventListener("change", async function(e){
     var files = Array.from(e.target.files||[]);
@@ -3392,8 +3461,8 @@ function doGet(e) {
     var parsed = [];
     for(var i=0;i<files.length;i++){
       var buf = await files[i].arrayBuffer();
-      var pf = parseWorkbookBuffer(buf, files[i].name);
-      if(pf) parsed.push(pf);
+      var pfs = parseWorkbookBuffer(buf, files[i].name);
+      if(pfs) parsed = parsed.concat(pfs);
     }
     if(parsed.length) setImportFiles(parsed);
   });
