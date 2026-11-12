@@ -708,6 +708,15 @@
       <div id="importDropText"><span class="btn-label">Faylni tanlash uchun shu yerga bosing</span></div>
     </label>
 
+    <div class="field" style="margin-top:12px;">
+      <label>Yoki Excel havolasini joylashtiring (OneDrive / SharePoint)</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="importLinkInput" placeholder="https://1drv.ms/x/…" style="flex:1; min-width:200px;">
+        <button type="button" class="btn" id="importLinkBtn"><span class="btn-label">Havoladan o'qish</span></button>
+      </div>
+      <div id="importLinkStatus" style="font-size:12px; margin-top:6px; line-height:1.5;"></div>
+    </div>
+
     <div id="importConfig" hidden>
       <div class="import-summary" id="importSummary"></div>
       <button type="button" class="btn sm ghost" id="toggleAdvancedBtn"><span class="btn-label">Ustunlarni o'zim moslashtirmoqchiman</span></button>
@@ -3025,6 +3034,8 @@ function doGet(e) {
     setBtnLabel(document.getElementById("importDropText"), "Faylni tanlash uchun shu yerga bosing");
     document.getElementById("runImportBtn").disabled = true;
     document.getElementById("importFile").value = "";
+    document.getElementById("importLinkInput").value = "";
+    document.getElementById("importLinkStatus").textContent = "";
     document.getElementById("importOverlay").classList.add("open");
   }
   function closeImportModal(){
@@ -3230,37 +3241,88 @@ function doGet(e) {
     document.getElementById("runImportBtn").disabled = records.length===0 || !phonesCol;
   }
 
+  function loadWorkbookFromBuffer(buffer){
+    try{
+      var data = new Uint8Array(buffer);
+      var wb = XLSX.read(data, {type:"array"});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:"", raw:true});
+      var colCount = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
+      var startRow = 0;
+      for(var i=0;i<Math.min(10,rows.length);i++){
+        var nonEmptyVals = rows[i].filter(function(v){ return v!==null && v!==undefined && String(v).trim()!==""; });
+        if(nonEmptyVals.length < Math.max(3, colCount*0.4)) continue;
+        var genericHits = nonEmptyVals.filter(function(v){ return /^(column|col|field|unnamed)\s*\d*$/i.test(String(v).trim()); }).length;
+        if(genericHits >= nonEmptyVals.length*0.5) continue; // looks like an auto-generated header row, not real data
+        startRow = i; break;
+      }
+      importParsed = {rows: rows, colCount: colCount, startRow: startRow, mapping: {}};
+      importParsed.mapping = guessMapping(rows, startRow, colCount);
+      document.getElementById("importStartRow").value = startRow+1;
+      document.getElementById("importTotalRows").value = (rows.length-startRow)+" (jami "+rows.length+")";
+      document.getElementById("importConfig").hidden = false;
+      renderMapTable();
+      return true;
+    }catch(err){
+      toast("Faylni o'qishda xatolik: "+err.message, true);
+      return false;
+    }
+  }
   document.getElementById("importFile").addEventListener("change", function(e){
     var file = e.target.files[0];
     if(!file) return;
     setBtnLabel(document.getElementById("importDropText"), file.name);
     var reader = new FileReader();
-    reader.onload = function(ev){
-      try{
-        var data = new Uint8Array(ev.target.result);
-        var wb = XLSX.read(data, {type:"array"});
-        var ws = wb.Sheets[wb.SheetNames[0]];
-        var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:"", raw:true});
-        var colCount = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
-        var startRow = 0;
-        for(var i=0;i<Math.min(10,rows.length);i++){
-          var nonEmptyVals = rows[i].filter(function(v){ return v!==null && v!==undefined && String(v).trim()!==""; });
-          if(nonEmptyVals.length < Math.max(3, colCount*0.4)) continue;
-          var genericHits = nonEmptyVals.filter(function(v){ return /^(column|col|field|unnamed)\s*\d*$/i.test(String(v).trim()); }).length;
-          if(genericHits >= nonEmptyVals.length*0.5) continue; // looks like an auto-generated header row, not real data
-          startRow = i; break;
-        }
-        importParsed = {rows: rows, colCount: colCount, startRow: startRow, mapping: {}};
-        importParsed.mapping = guessMapping(rows, startRow, colCount);
-        document.getElementById("importStartRow").value = startRow+1;
-        document.getElementById("importTotalRows").value = (rows.length-startRow)+" (jami "+rows.length+")";
-        document.getElementById("importConfig").hidden = false;
-        renderMapTable();
-      }catch(err){
-        toast("Faylni o'qishda xatolik: "+err.message, true);
-      }
-    };
+    reader.onload = function(ev){ loadWorkbookFromBuffer(ev.target.result); };
     reader.readAsArrayBuffer(file);
+  });
+
+  /* ---- import straight from a pasted OneDrive / SharePoint / direct .xlsx link ---- */
+  function b64url(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+  function excelLinkCandidates(link){
+    var out = [];
+    if(/1drv\.ms|onedrive\.live\.com|sharepoint\.com|onedrive\.com/i.test(link)){
+      out.push("https://api.onedrive.com/v1.0/shares/u!"+b64url(link)+"/root/content");
+      if(!/[?&]download=1/.test(link)) out.push(link+(link.indexOf("?")===-1?"?":"&")+"download=1");
+    }
+    out.push(link);
+    return out;
+  }
+  async function fetchExcelFromLink(link){
+    var errors = [];
+    var cands = excelLinkCandidates(link);
+    for(var i=0;i<cands.length;i++){
+      try{
+        var res = await fetch(cands[i]);
+        if(!res.ok){ errors.push("HTTP "+res.status); continue; }
+        var buf = await res.arrayBuffer();
+        var head = new Uint8Array(buf.slice(0,2));
+        var isZip = head[0]===0x50 && head[1]===0x4B;                       // .xlsx files are zip files ("PK")
+        var isOle = head[0]===0xD0 && head[1]===0xCF;                       // old .xls
+        if(!isZip && !isOle){ errors.push("Excel fayl emas (sahifa qaytdi)"); continue; }
+        return buf;
+      }catch(e){ errors.push("brauzer bloklandi"); }
+    }
+    var err = new Error(errors.join("; ")); err.tried = errors; throw err;
+  }
+  document.getElementById("importLinkBtn").addEventListener("click", async function(){
+    var link = document.getElementById("importLinkInput").value.trim();
+    var statusEl = document.getElementById("importLinkStatus");
+    if(!/^https?:\/\//i.test(link)){ statusEl.style.color = "var(--danger)"; statusEl.textContent = "Havola http:// yoki https:// bilan boshlanishi kerak"; return; }
+    var btn = this; btn.disabled = true; setBtnLabel(btn, "O'qilmoqda…");
+    statusEl.style.color = "var(--ink-dim)"; statusEl.textContent = "Havoladan fayl yuklanmoqda…";
+    importParsed = null; document.getElementById("importConfig").hidden = true; document.getElementById("runImportBtn").disabled = true;
+    try{
+      var buf = await fetchExcelFromLink(link);
+      if(loadWorkbookFromBuffer(buf)){
+        statusEl.style.color = "var(--success)"; statusEl.textContent = "Fayl havoladan o'qildi";
+        setBtnLabel(document.getElementById("importDropText"), "Havoladan o'qildi");
+      } else { statusEl.textContent = ""; }
+    }catch(e){
+      statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "Havoladan o'qib bo'lmadi ("+e.message+"). Havola \"Anyone with the link can view\" (havolasi bor hamma ko'ra oladi) bo'lishi kerak. Bo'lmasa, faylni OneDrive'dan yuklab olib, yuqoridagi maydonga tashlang.";
+    }
+    btn.disabled = false; setBtnLabel(btn, "Havoladan o'qish");
   });
 
   document.getElementById("importStartRow").addEventListener("change", function(){
