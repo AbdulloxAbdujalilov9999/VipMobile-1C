@@ -1127,6 +1127,38 @@ function buildGroupedRows_(items, partyFns) {
   return out;
 }
 
+/** Rows someone typed straight into a tab (no ID yet). The platform adopts them on its next check;
+ *  until then every rewrite MUST keep them, otherwise a normal platform sync would silently erase them. */
+function readPendingRows_(sh) {
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  var values = sh.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+  var out = [];
+  values.forEach(function (row) {
+    if (row[0]) return;                               // has an ID: normal record
+    if (!row[4] && !row[6]) return;                   // blank or divider row (no model, no IMEI)
+    out.push(row);
+  });
+  return out;
+}
+function norm_(v) { return String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ' '); }
+function softKey_(model, imei, buyPrice, source) {
+  return [norm_(model), String(imei || '').replace(/\D/g, ''), buyPrice === '' || buyPrice == null ? '' : Number(buyPrice), norm_(source)].join('|');
+}
+function pendingKey_(row) { return softKey_(row[4], row[6], row[11], row[2]); }
+function recKey_(rec) { return softKey_(rec.model, rec.imei, rec.buyPrice, rec.source); }
+function recFrom_(id, d) {
+  d = d || {};
+  return {
+    id: id, brand: d.brand || 'other', status: d.status || 'stock',
+    source: d.source || '', sourcePhone: d.sourcePhone || '', model: d.model || '',
+    imeiBox: !!d.imeiBox, imei: d.imei || '',
+    buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
+    buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
+    buyer: d.buyer || '', buyerPhone: d.buyerPhone || ''
+  };
+}
+
 function writeBody_(sh, rows) {
   var lastRow = sh.getLastRow();
   if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, HEADERS.length).clearContent();
@@ -1145,14 +1177,27 @@ var PARTY_FNS = {
  *  source of truth for ordering/grouping, so every write (single or bulk) goes through it. */
 function applyChangeAndRewriteAll_(mutate) {
   var sheets = {};
-  var master = {}; // id -> record
+  var pending = {};   // brand key -> rows typed directly into the sheet that the platform has not adopted yet
+  var master = {};    // id -> record
   SHEET_DEFS.forEach(function (def) {
     var sh = getOrCreateSheet_(def.name, def.color);
     sheets[def.key] = sh;
     readSheetRecords_(sh).forEach(function (rec) { rec.brand = def.key; master[rec.id] = rec; });
+    pending[def.key] = readPendingRows_(sh);
   });
 
-  mutate(master); // caller adds/updates/removes records in place
+  var adopted = mutate(master) || []; // caller adds/updates/removes records in place; may return records it adopted from the sheet
+
+  // an adopted record replaces exactly one matching typed-in row (so it is not shown twice)
+  adopted.forEach(function (rec) {
+    var k = recKey_(rec);
+    for (var i = 0; i < SHEET_DEFS.length; i++) {
+      var list = pending[SHEET_DEFS[i].key];
+      for (var j = 0; j < list.length; j++) {
+        if (pendingKey_(list[j]) === k) { list.splice(j, 1); return; }
+      }
+    }
+  });
 
   var buckets = { iphone: [], samsung: [], other: [] };
   var bandAll = [];
@@ -1166,6 +1211,7 @@ function applyChangeAndRewriteAll_(mutate) {
 
   SHEET_DEFS.forEach(function (def) {
     var rows = buildGroupedRows_(buckets[def.key], PARTY_FNS[def.key] || null);
+    pending[def.key].forEach(function (r) { rows.push(r); });   // typed-in rows stay at the bottom until adopted
     writeBody_(sheets[def.key], rows);
   });
 
@@ -1196,23 +1242,37 @@ function setupSheet() {
 
 /* ====================== HTTP entry points ====================== */
 function doPost(e) {
+  // one writer at a time: two overlapping rewrites used to be able to overwrite each other
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(25000);
+  } catch (lockErr) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'busy, try again' }));
+  }
   try {
     var body = JSON.parse(e.postData.contents);
     var action = body.action;
 
     if (action === 'upsert') {
       applyChangeAndRewriteAll_(function (master) {
-        var d = body.data || {};
-        master[body.id] = {
-          id: body.id, brand: d.brand || 'other', status: d.status || 'stock',
-          source: d.source || '', sourcePhone: d.sourcePhone || '', model: d.model || '',
-          imeiBox: !!d.imeiBox, imei: d.imei || '',
-          buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
-          buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
-          buyer: d.buyer || '', buyerPhone: d.buyerPhone || ''
-        };
+        master[body.id] = recFrom_(body.id, body.data);
       });
       return ContentService.createTextOutput(JSON.stringify({ ok: true }));
+    }
+
+    if (action === 'adopt') {
+      // the platform created records for rows typed into the sheet: store them (with IDs) and drop the typed-in copies
+      var count = 0;
+      applyChangeAndRewriteAll_(function (master) {
+        var out = [];
+        (body.rows || []).forEach(function (r) {
+          master[r.id] = recFrom_(r.id, r.data);
+          out.push(master[r.id]);
+          count++;
+        });
+        return out;
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, count: count }));
     }
 
     if (action === 'delete') {
@@ -1223,17 +1283,7 @@ function doPost(e) {
     if (action === 'bulkUpsert') {
       applyChangeAndRewriteAll_(function (master) {
         Object.keys(master).forEach(function (id) { delete master[id]; }); // bulk payload is authoritative
-        (body.rows || []).forEach(function (r) {
-          var d = r.data || {};
-          master[r.id] = {
-            id: r.id, brand: d.brand || 'other', status: d.status || 'stock',
-            source: d.source || '', sourcePhone: d.sourcePhone || '', model: d.model || '',
-            imeiBox: !!d.imeiBox, imei: d.imei || '',
-            buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
-            buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
-            buyer: d.buyer || '', buyerPhone: d.buyerPhone || ''
-          };
-        });
+        (body.rows || []).forEach(function (r) { master[r.id] = recFrom_(r.id, r.data); });
       });
       return ContentService.createTextOutput(JSON.stringify({ ok: true, count: (body.rows || []).length }));
     }
@@ -1241,6 +1291,8 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'unknown action' }));
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: String(err), stack: err.stack || '' }));
+  } finally {
+    try { lock.releaseLock(); } catch (relErr) {}
   }
 }
 
@@ -1755,11 +1807,42 @@ function doGet(e) {
   function sheetIdFromUrl(u){ var m = String(u||"").match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/); return m ? m[1] : ""; }
 
   var sheetCheckInFlight = false;
-  var sheetImportedKeys = {};
-  /** Two-way sync: finds rows typed straight into the Sheet (no ID yet) and creates a
-   *  matching Firestore record for each. The very next normal sync (which this triggers)
-   *  wipes the old ID-less row from the Sheet and replaces it with the properly grouped one. */
-  async function checkSheetForNewRows(silent){
+  var sheetSeenPending = {};     // typed-in rows seen at the previous check (content hash -> true)
+  var sheetAdoptedRows = {};     // content hash -> created record, so a failed "adopt" is retried, never duplicated
+  function pendingRowHash(r){
+    return [r.sheetName, r.model, r.imei, r.buyDate, r.buyTime, r.sellDate, r.sellTime, r.buyPrice, r.sellPrice, r.source, r.buyer].join("|");
+  }
+  function sheetDate(v){
+    var s = String(v==null?"":v).trim();
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    return parseFlexDate(v);
+  }
+  /** Turns a row typed straight into the Sheet into a platform record (dates/times/prices read the same
+   *  forgiving way the Excel import reads them; status is worked out from what was filled in). */
+  function phoneFromSheetRow(r, seq){
+    var now = new Date().toISOString();
+    var buyDate = sheetDate(r.buyDate), sellDate = sheetDate(r.sellDate);
+    var buyPrice = parseFlexNum(r.buyPrice), sellPrice = parseFlexNum(r.sellPrice);
+    var buyTime = parseFlexTime(r.buyTime), sellTime = parseFlexTime(r.sellTime);
+    var buyer = String(r.buyer||"").trim();
+    var status = (r.status && r.status!=="stock") ? r.status : (sellPrice!=null ? "sold" : ((buyer||sellDate) ? "lent" : "stock"));
+    var data = {
+      brand: r.brand||"other", status: status, isNew: /NEW/i.test(r.model),
+      source: String(r.source||"").trim(), sourcePhone: String(r.sourcePhone||"").trim(), model: String(r.model||"").trim(),
+      imeiBox: !!r.imeiBox, imei: String(r.imei||"").trim(),
+      buyDate: buyDate, sellDate: sellDate, buyPrice: buyPrice, sellPrice: sellPrice,
+      buyer: buyer, buyerPhone: String(r.buyerPhone||"").trim(),
+      note:"", sellNote:"", createdAt: (buyDate && buyTime) ? isoFromDateTime(buyDate, buyTime) : now,
+      updatedAt: now, seq: seq
+    };
+    if(status==="sold") data.soldAt = (sellDate && sellTime) ? isoFromDateTime(sellDate, sellTime) : now;
+    return data;
+  }
+  /** Two-way sync: rows typed straight into the Sheet (no ID yet) become platform records.
+   *  Automatic checks wait until a row has been left untouched for one check (and has a model and a buy price),
+   *  so a phone that is still being typed is never grabbed half-finished. force=true (buttons) skips that wait.
+   *  The Apps Script keeps typed-in rows safe until this adopts them. */
+  async function checkSheetForNewRows(silent, force){
     if(!sheetSyncReady() || !phonesCol || sheetCheckInFlight) return [];
     sheetCheckInFlight = true;
     var created = [];
@@ -1768,32 +1851,43 @@ function doGet(e) {
     try{
       var json = await fetchSheetExport(activeSheetSyncUrl());
       var rows = json.unidentified || [];
-      var added = 0;
-      for(var i=0;i<rows.length;i++){
-        var r = rows[i];
-        if(!r.model) continue;
-        var imeiDigits = String(r.imei||"").replace(/\D/g,"");
-        var dupKey = (imeiDigits.length>=13 ? imeiDigits : [r.model,r.buyDate,r.buyPrice,r.source].join("|"));
-        var alreadyHave = state.phones.some(function(p){ return imeiDigits.length>=13 && String(p.imei||"").replace(/\D/g,"")===imeiDigits; });
-        if(alreadyHave || sheetImportedKeys[dupKey]) continue;   // never create the same Sheet row twice
-        sheetImportedKeys[dupKey] = true;
-        var data = {
-          brand: r.brand||"other", status: r.status||"stock", isNew: /NEW/i.test(r.model),
-          source: r.source||"", sourcePhone: r.sourcePhone||"", model: r.model||"",
-          imeiBox: !!r.imeiBox, imei: r.imei||"",
-          buyDate: r.buyDate||"", sellDate: r.sellDate||"",
-          buyPrice: r.buyPrice!=null?r.buyPrice:null, sellPrice: r.sellPrice!=null?r.sellPrice:null,
-          buyer: r.buyer||"", buyerPhone: r.buyerPhone||"",
-          note:"", sellNote:"", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-          seq: Date.now()+i
-        };
-        var docRef = await phonesCol.add(data);
-        added++;
-        created.push(Object.assign({id: docRef.id}, data));
-        syncToSheet("upsert", docRef.id, data);
+      var nowSeen = {}, ready = [], waiting = 0;
+      rows.forEach(function(r){
+        var h = pendingRowHash(r);
+        nowSeen[h] = true;
+        if(!r.model){ return; }
+        var complete = parseFlexNum(r.buyPrice)!=null;
+        if(!force && !(sheetSeenPending[h] && complete)){ waiting++; return; }
+        ready.push({row:r, hash:h});
+      });
+      sheetSeenPending = nowSeen;
+      var toAdopt = [];
+      for(var i=0;i<ready.length;i++){
+        var item = ready[i];
+        var rec = sheetAdoptedRows[item.hash];
+        if(!rec){
+          var data = phoneFromSheetRow(item.row, Date.now()+i);
+          var docRef = await phonesCol.add(data);
+          rec = Object.assign({id: docRef.id}, data);
+          sheetAdoptedRows[item.hash] = rec;
+          created.push(rec);
+        }
+        toAdopt.push(rec);
       }
-      if(added) toast(added+" ta yangi telefon Sheetdan qo'shildi");
-      else if(!silent) toast("Sheetda yangi qator topilmadi");
+      if(toAdopt.length){
+        var payload = toAdopt.map(function(rec){ return {id:rec.id, data:enrichForSheet(rec)}; });
+        try{
+          await sheetPost({action:"adopt", rows: payload});
+        }catch(e){
+          if(/unknown action/i.test(e.message)){            // old Apps Script: fall back to one write per phone
+            for(var k=0;k<payload.length;k++) await sheetPost({action:"upsert", id:payload[k].id, data:payload[k].data});
+          } else throw e;
+        }
+        noteSheetResult(true);
+        toAdopt.forEach(function(rec){ Object.keys(sheetAdoptedRows).forEach(function(h){ if(sheetAdoptedRows[h]===rec) delete sheetAdoptedRows[h]; }); });
+      }
+      if(created.length) toast(created.length+" ta yangi telefon Sheetdan qo'shildi");
+      else if(!silent) toast(waiting ? waiting+" ta qator hali to'liq emas (model va narx kerak) — yozib bo'lgach yana tekshiring" : "Sheetda yangi qator topilmadi");
     }catch(e){
       if(!silent) toast("Sheetni tekshirishda xatolik: "+e.message, true);
     }
@@ -1801,7 +1895,7 @@ function doGet(e) {
     if(btn && !silent){ btn.disabled = false; setBtnLabel(btn, "Sheetdan tekshirish"); }
     return created;
   }
-  document.getElementById("sheetCheckBtn").addEventListener("click", function(){ checkSheetForNewRows(false); });
+  document.getElementById("sheetCheckBtn").addEventListener("click", function(){ checkSheetForNewRows(false, true); });
   document.getElementById("copySheetSyncBtn").addEventListener("click", async function(){
     try{
       await navigator.clipboard.writeText(SHEETSYNC_GS_SOURCE);
@@ -1949,7 +2043,8 @@ function doGet(e) {
     }));
 
     if(!state.sheetCheckInterval){
-      state.sheetCheckInterval = setInterval(function(){ checkSheetForNewRows(true); }, 90000);
+      state.sheetCheckInterval = setInterval(function(){ if(!document.hidden) checkSheetForNewRows(true); }, 30000);
+      document.addEventListener("visibilitychange", function(){ if(!document.hidden) checkSheetForNewRows(true); });
     }
   }
 
@@ -2584,6 +2679,24 @@ function doGet(e) {
       setTimeout(function(){ document.getElementById("financePassword").focus(); }, 50);
     }
   }
+  /* Moliya auto-lock: if nobody touches the page for 60 seconds while the finance data is open,
+     close it, lock it again (password needed) and go back to Bosh sahifa - nothing stays visible on an unattended laptop. */
+  var FINANCE_IDLE_MS = 60000;
+  var lastActivityAt = Date.now();
+  function noteActivity(){ lastActivityAt = Date.now(); }
+  ["mousemove","mousedown","keydown","wheel","scroll","touchstart","pointerdown","click"].forEach(function(ev){
+    document.addEventListener(ev, noteActivity, {passive:true, capture:true});
+  });
+  setInterval(function(){
+    if(!state.financeUnlocked) { lastActivityAt = Date.now(); return; }
+    if(Date.now()-lastActivityAt < FINANCE_IDLE_MS) return;
+    try{ document.getElementById("soldListOverlay").classList.remove("open"); }catch(e){}
+    try{ closeWipeModal(); }catch(e){}
+    try{ closeMonthModal(); }catch(e){}
+    if(confirmAction==="new-month"){ try{ closeConfirm(); }catch(e){} }
+    switchTab("dashboard");                       // also re-locks Moliya and clears the password box
+    toast("Moliya xavfsizlik uchun yopildi (60 soniya harakatsiz)");
+  }, 2000);
   document.getElementById("tabNav").addEventListener("click", function(e){
     var btn = e.target.closest(".tab-btn");
     if(!btn) return;
@@ -3088,7 +3201,7 @@ function doGet(e) {
     var btn = this;
     btn.disabled = true; setBtnLabel(btn, "Tekshirilmoqda…");
     try{
-      var added = await checkSheetForNewRows(true);
+      var added = await checkSheetForNewRows(true, true);
       var known = {}; state.phones.forEach(function(p){ known[p.id] = true; });
       var r = await bulkSyncToSheet(state.phones.concat(added.filter(function(p){ return !known[p.id]; })));
       toast(r.ok ? "Sinxronlash tugadi — "+r.count+" ta yozuv Sheetda" : "Sheetga yozilmadi: "+r.error, !r.ok);

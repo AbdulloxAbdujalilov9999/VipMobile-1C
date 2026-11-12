@@ -259,6 +259,38 @@ function buildGroupedRows_(items, partyFns) {
   return out;
 }
 
+/** Rows someone typed straight into a tab (no ID yet). The platform adopts them on its next check;
+ *  until then every rewrite MUST keep them, otherwise a normal platform sync would silently erase them. */
+function readPendingRows_(sh) {
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  var values = sh.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+  var out = [];
+  values.forEach(function (row) {
+    if (row[0]) return;                               // has an ID: normal record
+    if (!row[4] && !row[6]) return;                   // blank or divider row (no model, no IMEI)
+    out.push(row);
+  });
+  return out;
+}
+function norm_(v) { return String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ' '); }
+function softKey_(model, imei, buyPrice, source) {
+  return [norm_(model), String(imei || '').replace(/\D/g, ''), buyPrice === '' || buyPrice == null ? '' : Number(buyPrice), norm_(source)].join('|');
+}
+function pendingKey_(row) { return softKey_(row[4], row[6], row[11], row[2]); }
+function recKey_(rec) { return softKey_(rec.model, rec.imei, rec.buyPrice, rec.source); }
+function recFrom_(id, d) {
+  d = d || {};
+  return {
+    id: id, brand: d.brand || 'other', status: d.status || 'stock',
+    source: d.source || '', sourcePhone: d.sourcePhone || '', model: d.model || '',
+    imeiBox: !!d.imeiBox, imei: d.imei || '',
+    buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
+    buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
+    buyer: d.buyer || '', buyerPhone: d.buyerPhone || ''
+  };
+}
+
 function writeBody_(sh, rows) {
   var lastRow = sh.getLastRow();
   if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, HEADERS.length).clearContent();
@@ -277,14 +309,27 @@ var PARTY_FNS = {
  *  source of truth for ordering/grouping, so every write (single or bulk) goes through it. */
 function applyChangeAndRewriteAll_(mutate) {
   var sheets = {};
-  var master = {}; // id -> record
+  var pending = {};   // brand key -> rows typed directly into the sheet that the platform has not adopted yet
+  var master = {};    // id -> record
   SHEET_DEFS.forEach(function (def) {
     var sh = getOrCreateSheet_(def.name, def.color);
     sheets[def.key] = sh;
     readSheetRecords_(sh).forEach(function (rec) { rec.brand = def.key; master[rec.id] = rec; });
+    pending[def.key] = readPendingRows_(sh);
   });
 
-  mutate(master); // caller adds/updates/removes records in place
+  var adopted = mutate(master) || []; // caller adds/updates/removes records in place; may return records it adopted from the sheet
+
+  // an adopted record replaces exactly one matching typed-in row (so it is not shown twice)
+  adopted.forEach(function (rec) {
+    var k = recKey_(rec);
+    for (var i = 0; i < SHEET_DEFS.length; i++) {
+      var list = pending[SHEET_DEFS[i].key];
+      for (var j = 0; j < list.length; j++) {
+        if (pendingKey_(list[j]) === k) { list.splice(j, 1); return; }
+      }
+    }
+  });
 
   var buckets = { iphone: [], samsung: [], other: [] };
   var bandAll = [];
@@ -298,6 +343,7 @@ function applyChangeAndRewriteAll_(mutate) {
 
   SHEET_DEFS.forEach(function (def) {
     var rows = buildGroupedRows_(buckets[def.key], PARTY_FNS[def.key] || null);
+    pending[def.key].forEach(function (r) { rows.push(r); });   // typed-in rows stay at the bottom until adopted
     writeBody_(sheets[def.key], rows);
   });
 
@@ -328,23 +374,37 @@ function setupSheet() {
 
 /* ====================== HTTP entry points ====================== */
 function doPost(e) {
+  // one writer at a time: two overlapping rewrites used to be able to overwrite each other
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(25000);
+  } catch (lockErr) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'busy, try again' }));
+  }
   try {
     var body = JSON.parse(e.postData.contents);
     var action = body.action;
 
     if (action === 'upsert') {
       applyChangeAndRewriteAll_(function (master) {
-        var d = body.data || {};
-        master[body.id] = {
-          id: body.id, brand: d.brand || 'other', status: d.status || 'stock',
-          source: d.source || '', sourcePhone: d.sourcePhone || '', model: d.model || '',
-          imeiBox: !!d.imeiBox, imei: d.imei || '',
-          buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
-          buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
-          buyer: d.buyer || '', buyerPhone: d.buyerPhone || ''
-        };
+        master[body.id] = recFrom_(body.id, body.data);
       });
       return ContentService.createTextOutput(JSON.stringify({ ok: true }));
+    }
+
+    if (action === 'adopt') {
+      // the platform created records for rows typed into the sheet: store them (with IDs) and drop the typed-in copies
+      var count = 0;
+      applyChangeAndRewriteAll_(function (master) {
+        var out = [];
+        (body.rows || []).forEach(function (r) {
+          master[r.id] = recFrom_(r.id, r.data);
+          out.push(master[r.id]);
+          count++;
+        });
+        return out;
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, count: count }));
     }
 
     if (action === 'delete') {
@@ -355,17 +415,7 @@ function doPost(e) {
     if (action === 'bulkUpsert') {
       applyChangeAndRewriteAll_(function (master) {
         Object.keys(master).forEach(function (id) { delete master[id]; }); // bulk payload is authoritative
-        (body.rows || []).forEach(function (r) {
-          var d = r.data || {};
-          master[r.id] = {
-            id: r.id, brand: d.brand || 'other', status: d.status || 'stock',
-            source: d.source || '', sourcePhone: d.sourcePhone || '', model: d.model || '',
-            imeiBox: !!d.imeiBox, imei: d.imei || '',
-            buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
-            buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
-            buyer: d.buyer || '', buyerPhone: d.buyerPhone || ''
-          };
-        });
+        (body.rows || []).forEach(function (r) { master[r.id] = recFrom_(r.id, r.data); });
       });
       return ContentService.createTextOutput(JSON.stringify({ ok: true, count: (body.rows || []).length }));
     }
@@ -373,6 +423,8 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'unknown action' }));
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: String(err), stack: err.stack || '' }));
+  } finally {
+    try { lock.releaseLock(); } catch (relErr) {}
   }
 }
 
