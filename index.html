@@ -505,6 +505,20 @@
                 </p>
               </div>
               <div class="card">
+                <h3>AI yordamchi <span id="aiKeyStatus" class="hint"></span></h3>
+                <div class="field" style="margin-bottom:12px;">
+                  <label>Anthropic API kaliti</label>
+                  <input type="password" id="aiKeyInput" placeholder="sk-ant-…" autocomplete="off">
+                </div>
+                <div class="data-actions">
+                  <button class="btn lg primary" id="aiKeySaveBtn">Kalitni saqlash</button>
+                  <button class="btn lg" id="aiKeyClearBtn">O'chirish</button>
+                </div>
+                <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
+                  Kalit faqat shu qurilmadagi brauzeringizda saqlanadi (kodga yoki GitHub'ga yozilmaydi). Excel yuklashda "AI bilan tartiblash" tugmasi fayldagi qatorlarni Claude'ga yuborib, ma'lumotni to'g'ri ustunlarga ajratib beradi. Har bir qurilmada bir marta kiritiladi.
+                </p>
+              </div>
+              <div class="card">
                 <h3>Google Sheet bilan sinxronlash <span id="sheetSyncStatus" class="hint"></span></h3>
                 <div id="sheetSyncBanner" class="setup-banner" style="margin-bottom:14px;"></div>
                 <div class="field" style="margin-bottom:12px;">
@@ -719,6 +733,11 @@
 
     <div id="importConfig" hidden>
       <div class="import-summary" id="importSummary"></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+        <button type="button" class="btn sm primary" id="aiSortBtn"><span class="btn-label">AI bilan tartiblash</span></button>
+        <button type="button" class="btn sm ghost" id="aiSortOffBtn" hidden>Oddiy usulga qaytish</button>
+        <span id="aiSortStatus" style="font-size:12px; color:var(--ink-dim); line-height:1.5;"></span>
+      </div>
       <button type="button" class="btn sm ghost" id="toggleAdvancedBtn"><span class="btn-label">Ustunlarni o'zim moslashtirmoqchiman</span></button>
       <div id="importAdvanced" hidden>
         <div class="form-grid" style="margin-top:14px">
@@ -3160,6 +3179,7 @@ function doGet(e) {
   }
 
   function buildRecordsFromMapping(){
+    if(importParsed.aiRecords) return importParsed.aiRecords.map(function(r){ return Object.assign({}, r); });
     var rows = importParsed.rows, startRow = importParsed.startRow, mapping = importParsed.mapping;
     var fieldByCol = {};
     Object.keys(mapping).forEach(function(c){ if(mapping[c]) fieldByCol[c] = mapping[c]; });
@@ -3256,7 +3276,8 @@ function doGet(e) {
         if(genericHits >= nonEmptyVals.length*0.5) continue; // looks like an auto-generated header row, not real data
         startRow = i; break;
       }
-      importParsed = {rows: rows, colCount: colCount, startRow: startRow, mapping: {}};
+      importParsed = {rows: rows, colCount: colCount, startRow: startRow, mapping: {}, aiRecords: null};
+      aiSortReset();
       importParsed.mapping = guessMapping(rows, startRow, colCount);
       document.getElementById("importStartRow").value = startRow+1;
       document.getElementById("importTotalRows").value = (rows.length-startRow)+" (jami "+rows.length+")";
@@ -3275,6 +3296,125 @@ function doGet(e) {
     var reader = new FileReader();
     reader.onload = function(ev){ loadWorkbookFromBuffer(ev.target.result); };
     reader.readAsArrayBuffer(file);
+  });
+
+
+  /* ====================== AI: sort messy Excel rows with Claude ====================== */
+  var AI_MODEL = "claude-sonnet-5";
+  var AI_KEY_STORE = "vms_ai_key";
+  function aiGetKey(){ try{ return localStorage.getItem(AI_KEY_STORE) || ""; }catch(e){ return ""; } }
+  function aiRenderKeyStatus(){
+    var el = document.getElementById("aiKeyStatus"); if(!el) return;
+    el.textContent = aiGetKey() ? "ulangan" : "kalit yo'q";
+  }
+  document.getElementById("aiKeySaveBtn").addEventListener("click", function(){
+    var v = document.getElementById("aiKeyInput").value.trim();
+    if(!/^sk-ant-/.test(v)){ toast("Kalit sk-ant- bilan boshlanishi kerak", true); return; }
+    try{ localStorage.setItem(AI_KEY_STORE, v); }catch(e){ toast("Brauzer saqlashga ruxsat bermadi", true); return; }
+    document.getElementById("aiKeyInput").value = "";
+    aiRenderKeyStatus(); toast("AI kaliti shu qurilmada saqlandi");
+  });
+  document.getElementById("aiKeyClearBtn").addEventListener("click", function(){
+    try{ localStorage.removeItem(AI_KEY_STORE); }catch(e){}
+    document.getElementById("aiKeyInput").value = "";
+    aiRenderKeyStatus(); toast("AI kaliti o'chirildi");
+  });
+  aiRenderKeyStatus();
+
+  function aiSortReset(){
+    var off = document.getElementById("aiSortOffBtn"), st = document.getElementById("aiSortStatus"), b = document.getElementById("aiSortBtn");
+    if(off) off.hidden = true; if(st) st.textContent = ""; if(b) b.disabled = false;
+  }
+  var AI_SYSTEM = [
+    "You clean up rows from a phone reseller's Excel sheet (Uzbekistan; text is Uzbek/Russian/English slang, often misspelled).",
+    "Each input row is {i, cells:{A:..., B:...}}. Columns are NOT labelled and differ between files; infer each cell's meaning from its content.",
+    "Return ONLY a JSON array, one object per input row that is a real phone/device (skip empty rows, subtotal rows, formula errors like #VALUE!, and rows that are only a note). Keep the input index as \"i\".",
+    "Fields: i (number), model (string: brand+model+storage+colour in the seller's own words, cleaned; keep battery %, region code like KH/A and the word NEW if present),",
+    "brand (\"iphone\"|\"samsung\"|\"other\"), isNew (true if the sheet marks it NEW/NNEW/unopened), imeiBox (true if the box is present: BOR), imei (digits and dashes exactly as written, \"\" if absent or a placeholder like REMONT or 123-123-123),",
+    "source (who it was bought from), sourcePhone (their phone number if any), buyDate and sellDate (\"YYYY-MM-DD\", \"\" if absent; two-digit years mean 20YY; day comes first in dd.mm.yy), buyPrice and sellPrice (numbers in USD or null; sellPrice only if it was actually sold),",
+    "buyer (who bought it / who currently holds it), buyerPhone, note (anything else useful: remarks, who owes money, repair state, return notes), status.",
+    "status: \"sold\" if there is a sell price or the note says it was sold; \"lent\" if it is currently with another person/shop to sell or try (words like DA, BERADI, 'at X's'), without a sale; \"lost\" if lost/stolen; otherwise \"stock\".",
+    "Ignore constant filler cells such as a column that just says KR. Never invent data. Output the JSON array and nothing else."
+  ].join("\n");
+
+  function aiCellText(v){
+    if(v===null || v===undefined) return "";
+    if(typeof v==="number"){
+      if(v>15000 && v<80000){ var iso = parseFlexDate(v); if(iso) return iso; }
+      if(v>0 && v<1 && Math.abs(v*24*60-Math.round(v*24*60))<0.5){ var m=Math.round(v*24*60); return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0"); }
+      return String(v);
+    }
+    if(v instanceof Date) return v.toISOString().slice(0,10);
+    return String(v).trim();
+  }
+  async function aiCall(key, userText){
+    var res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body: JSON.stringify({model:AI_MODEL, max_tokens:8000, system:AI_SYSTEM, messages:[{role:"user", content:userText}]})
+    });
+    if(!res.ok){
+      var msg = "HTTP "+res.status;
+      try{ var j = await res.json(); if(j && j.error && j.error.message) msg += ": "+j.error.message; }catch(e){}
+      var err = new Error(msg); err.status = res.status; throw err;
+    }
+    var data = await res.json();
+    var text = (data.content||[]).map(function(b){ return b.text||""; }).join("");
+    var a = text.indexOf("["), b = text.lastIndexOf("]");
+    if(a===-1 || b===-1) throw new Error("AI javobi tushunarsiz");
+    return JSON.parse(text.slice(a, b+1));
+  }
+  function aiCleanRecord(o){
+    var s = function(v){ return v==null ? "" : String(v).trim(); };
+    var date = function(v){ v = s(v); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ""; };
+    var num = function(v){ if(v===null||v===undefined||v==="") return null; var n = Number(String(v).replace(/[^0-9.\-]/g,"")); return isNaN(n) ? null : n; };
+    var rec = {model:s(o.model), imei:s(o.imei), imeiBox:!!o.imeiBox, source:s(o.source), sourcePhone:s(o.sourcePhone),
+      buyDate:date(o.buyDate), buyPrice:num(o.buyPrice), buyer:s(o.buyer), buyerPhone:s(o.buyerPhone),
+      sellDate:date(o.sellDate), sellPrice:num(o.sellPrice), note:s(o.note)};
+    if(!rec.model && !rec.imei) return null;
+    rec.brand = (o.brand==="iphone"||o.brand==="samsung"||o.brand==="other") ? o.brand : classifyBrand(rec.model);
+    rec.status = ["stock","sold","lent","lost"].indexOf(o.status)!==-1 ? o.status : (rec.sellPrice!=null ? "sold" : "stock");
+    rec.isNew = (o.isNew===true) || /NEW/i.test(rec.model);
+    return rec;
+  }
+  document.getElementById("aiSortBtn").addEventListener("click", async function(){
+    var st = document.getElementById("aiSortStatus");
+    if(!importParsed){ st.style.color="var(--danger)"; st.textContent = "Avval fayl yoki havola tanlang"; return; }
+    var key = aiGetKey();
+    if(!key){ st.style.color="var(--danger)"; st.textContent = "Avval Moliya > AI yordamchi bo'limiga kalitni kiriting"; return; }
+    var btn = this; btn.disabled = true; setBtnLabel(btn, "AI ishlayapti…"); st.style.color = "var(--ink-dim)";
+    var rows = importParsed.rows, start = importParsed.startRow, items = [];
+    for(var r=start; r<rows.length; r++){
+      var cells = {}, any = false;
+      (rows[r]||[]).forEach(function(v, c){
+        var t = aiCellText(v); if(t==="" || /^#[A-Z\/!?0]+/.test(t)) return;
+        cells[String.fromCharCode(65+(c%26))] = t; any = true;
+      });
+      if(any) items.push({i:r, cells:cells});
+    }
+    var BATCH = 40, out = [];
+    try{
+      for(var k=0; k<items.length; k+=BATCH){
+        st.textContent = "AI ishlayapti… "+Math.min(k+BATCH, items.length)+" / "+items.length;
+        var part = await aiCall(key, JSON.stringify(items.slice(k, k+BATCH)));
+        part.forEach(function(o){ var rec = aiCleanRecord(o||{}); if(rec) out.push(rec); });
+      }
+      if(!out.length) throw new Error("AI hech narsa topmadi");
+      importParsed.aiRecords = out;
+      st.style.color = "var(--success)"; st.textContent = "AI "+out.length+" ta telefonni tartibladi. Ro'yxatni tekshirib, yuklashingiz mumkin.";
+      document.getElementById("aiSortOffBtn").hidden = false;
+      updateImportSummary();
+    }catch(e){
+      importParsed.aiRecords = null;
+      st.style.color = "var(--danger)";
+      st.textContent = (e.status===401 ? "Kalit noto'g'ri yoki bekor qilingan. " : "AI xatosi: ")+e.message+" — oddiy usul saqlanib qoldi.";
+      updateImportSummary();
+    }
+    btn.disabled = false; setBtnLabel(btn, "AI bilan tartiblash");
+  });
+  document.getElementById("aiSortOffBtn").addEventListener("click", function(){
+    if(!importParsed) return;
+    importParsed.aiRecords = null; aiSortReset(); updateImportSummary();
   });
 
   /* ---- import straight from a pasted OneDrive / SharePoint / direct .xlsx link ---- */
@@ -3328,7 +3468,7 @@ function doGet(e) {
   document.getElementById("importStartRow").addEventListener("change", function(){
     if(!importParsed) return;
     var v = Math.max(1, parseInt(this.value,10)||1) - 1;
-    importParsed.startRow = v;
+    importParsed.startRow = v; importParsed.aiRecords = null; aiSortReset();
     importParsed.mapping = guessMapping(importParsed.rows, v, importParsed.colCount);
     document.getElementById("importTotalRows").value = (importParsed.rows.length-v)+" (jami "+importParsed.rows.length+")";
     renderMapTable();
