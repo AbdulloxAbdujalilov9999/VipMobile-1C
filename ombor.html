@@ -486,8 +486,10 @@
           </div>
           <div id="monthViewBanner" hidden class="setup-banner" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;"></div>
           <div class="kpi-grid" id="finKpiGrid"></div>
-          <div class="type-head">Turlar bo'yicha hisob <span style="text-transform:none; letter-spacing:0; font-weight:600;">— kartani bosing: shu turdagi sotilgan telefonlar ro'yxati</span></div>
+          <div class="type-head">Ishlatilgan telefonlar <span style="text-transform:none; letter-spacing:0; font-weight:600;">— kartani bosing: shu turdagi sotilgan telefonlar va foyda ro'yxati</span></div>
           <div class="type-grid" id="finTypeGrid"></div>
+          <div class="type-head">Yangi telefonlar <span style="text-transform:none; letter-spacing:0; font-weight:600;">— iPhone Yangi, Samsung Yangi va boshqalar alohida</span></div>
+          <div class="type-grid" id="finNewGrid"></div>
           <div class="panel-grid">
             <div>
               <div class="card">
@@ -819,13 +821,18 @@
     <button class="modal-close" id="closeSoldListModal">&times;</button>
     <h2>Sotilgan telefonlar</h2>
     <div class="modal-sub" id="soldListSub"></div>
-    <div class="sort-bar" id="soldTypeBar">
+    <div class="sort-bar" id="soldBrandBar">
       <span class="sort-label">Turi:</span>
-      <button class="chip active" data-type="all">Barchasi</button>
-      <button class="chip" data-type="iphone">iPhone</button>
-      <button class="chip" data-type="samsung">Samsung</button>
-      <button class="chip" data-type="new">Yangi</button>
-      <button class="chip" data-type="other">Boshqa</button>
+      <button class="chip active" data-brand="all">Barchasi</button>
+      <button class="chip" data-brand="iphone">iPhone</button>
+      <button class="chip" data-brand="samsung">Samsung</button>
+      <button class="chip" data-brand="other">Boshqa</button>
+    </div>
+    <div class="sort-bar" id="soldCondBar">
+      <span class="sort-label">Holati:</span>
+      <button class="chip active" data-cond="all">Hammasi</button>
+      <button class="chip" data-cond="new">Yangi</button>
+      <button class="chip" data-cond="used">Ishlatilgan</button>
     </div>
     <div class="sort-bar" id="soldSortBar">
       <span class="sort-label">Saralash:</span>
@@ -2544,11 +2551,26 @@ function doGet(e) {
     }).join("");
     var profitCard = document.getElementById("profitKpiCard");
     var viewLabel = view.mode==="month" ? view.label : "Joriy oy";
-    if(profitCard) profitCard.onclick = function(){ openSoldListModal(sold, viewLabel, "all"); };
+    if(profitCard) profitCard.onclick = function(){ openSoldListModal(sold, viewLabel, "all", "all"); };
 
-    var typeDefs = ["iphone","samsung","new","other"].map(function(k){ return {key:k, label:TYPE_LABELS[k], test:TYPE_TESTS[k]}; });
-    document.getElementById("finTypeGrid").innerHTML = typeDefs.map(function(d){
-      var soldT = sold.filter(d.test), stockT = stock.filter(d.test);
+    function matchPhone(p, brand, cond){
+      if(brand!=="all" && p.brand!==brand) return false;
+      if(cond==="new") return isNewPhone(p);
+      if(cond==="used") return !isNewPhone(p);
+      return true;
+    }
+    var typeDefs = [
+      {key:"iphone|used",   brand:"iphone",  cond:"used", label:"iPhone"},
+      {key:"samsung|used",  brand:"samsung", cond:"used", label:"Samsung"},
+      {key:"other|used",    brand:"other",   cond:"used", label:"Boshqa"},
+      {key:"all|new",       brand:"all",     cond:"new",  label:"Yangi · hammasi"},
+      {key:"iphone|new",    brand:"iphone",  cond:"new",  label:"iPhone Yangi"},
+      {key:"samsung|new",   brand:"samsung", cond:"new",  label:"Samsung Yangi"},
+      {key:"other|new",     brand:"other",   cond:"new",  label:"Boshqa Yangi"}
+    ];
+    function typeCardHTML(d){
+      var test = function(p){ return matchPhone(p, d.brand, d.cond); };
+      var soldT = sold.filter(test), stockT = stock.filter(test);
       var profit = soldT.reduce(function(s,p){ return s+(profitOf(p)||0); },0);
       var revenue = soldT.reduce(function(s,p){ return s+(p.sellPrice||0); },0);
       var cost = soldT.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
@@ -2556,7 +2578,7 @@ function doGet(e) {
       var stockVal = stockT.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
       var avg = soldT.length ? profit/soldT.length : 0;
       return '<div class="kpi type-card" data-type="'+d.key+'">'+
-        '<div class="kpi-label">'+(d.key==="new"?'Yangi Telefonlar':esc(d.label))+'</div>'+
+        '<div class="kpi-label">'+esc(d.label)+'</div>'+
         '<div class="kpi-value '+(profit>=0?"success":"danger")+'">'+fmtMoney(profit)+'</div>'+
         '<div class="kpi-sub">'+soldT.length+' ta sotilgan</div>'+
         '<div class="type-lines">'+
@@ -2565,11 +2587,13 @@ function doGet(e) {
           '<div><span>O\'rtacha foyda</span><b>'+fmtMoney(Math.round(avg))+'</b></div>'+
           '<div><span>Sotilmagan</span><b>'+stockT.length+' ta · '+fmtMoney(stockVal)+'</b></div>'+
         '</div></div>';
-    }).join("");
-    document.querySelectorAll("#finTypeGrid .type-card").forEach(function(card){
+    }
+    document.getElementById("finTypeGrid").innerHTML = typeDefs.filter(function(d){ return d.cond==="used"; }).map(typeCardHTML).join("");
+    document.getElementById("finNewGrid").innerHTML = typeDefs.filter(function(d){ return d.cond==="new"; }).map(typeCardHTML).join("");
+    document.querySelectorAll("#finTypeGrid .type-card, #finNewGrid .type-card").forEach(function(card){
       card.onclick = function(){
         var d = typeDefs.filter(function(x){return x.key===card.getAttribute("data-type");})[0];
-        openSoldListModal(sold, viewLabel, d.key);
+        openSoldListModal(sold, viewLabel, d.brand, d.cond);
       };
     });
 
@@ -2627,14 +2651,26 @@ function doGet(e) {
   }
 
   /* ====================== Moliya: sold-phones breakdown modal ====================== */
-  var soldListState = {list:[], label:"", sort:"date", type:"all"};
+  var soldListState = {list:[], label:"", sort:"date", brand:"all", cond:"all"};
   function renderSoldList(){
-    var label = soldListState.label + (soldListState.type==="all" ? "" : " · "+(soldListState.type==="new" ? "Yangi Telefonlar" : TYPE_LABELS[soldListState.type]));
-    var soldList = soldListState.type==="all" ? soldListState.list : soldListState.list.filter(TYPE_TESTS[soldListState.type]);
+    var COND_LABEL = {"new":"Yangi", used:"Ishlatilgan"};
+    var parts = [];
+    if(soldListState.brand!=="all") parts.push(TYPE_LABELS[soldListState.brand]);
+    if(soldListState.cond!=="all") parts.push(COND_LABEL[soldListState.cond]);
+    var label = soldListState.label + (parts.length ? " · "+parts.join(" ") : "");
+    var soldList = soldListState.list.filter(function(p){
+      if(soldListState.brand!=="all" && p.brand!==soldListState.brand) return false;
+      if(soldListState.cond==="new") return isNewPhone(p);
+      if(soldListState.cond==="used") return !isNewPhone(p);
+      return true;
+    });
     var totalProfit = soldList.reduce(function(s,p){ return s+(profitOf(p)||0); },0);
     document.getElementById("soldListSub").textContent = label+" — "+soldList.length+" ta telefon sotilgan · jami foyda "+fmtMoney(totalProfit);
-    document.querySelectorAll("#soldTypeBar [data-type]").forEach(function(b){
-      b.classList.toggle("active", b.getAttribute("data-type")===soldListState.type);
+    document.querySelectorAll("#soldBrandBar [data-brand]").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-brand")===soldListState.brand);
+    });
+    document.querySelectorAll("#soldCondBar [data-cond]").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-cond")===soldListState.cond);
     });
     document.querySelectorAll("#soldSortBar [data-sort]").forEach(function(b){
       b.classList.toggle("active", b.getAttribute("data-sort")===soldListState.sort);
@@ -2665,13 +2701,16 @@ function doGet(e) {
       '</tr>';
     }).join("") : '<tr><td colspan="5"><div class="empty-state">Sotilgan telefon yo\'q</div></td></tr>';
   }
-  function openSoldListModal(soldList, label, type){
-    soldListState = {list:soldList, label:label, sort:"date", type:type||"all"};
+  function openSoldListModal(soldList, label, brand, cond){
+    soldListState = {list:soldList, label:label, sort:"date", brand:brand||"all", cond:cond||"all"};
     renderSoldList();
     document.getElementById("soldListOverlay").classList.add("open");
   }
-  document.querySelectorAll("#soldTypeBar [data-type]").forEach(function(b){
-    b.addEventListener("click", function(){ soldListState.type = b.getAttribute("data-type"); renderSoldList(); });
+  document.querySelectorAll("#soldBrandBar [data-brand]").forEach(function(b){
+    b.addEventListener("click", function(){ soldListState.brand = b.getAttribute("data-brand"); renderSoldList(); });
+  });
+  document.querySelectorAll("#soldCondBar [data-cond]").forEach(function(b){
+    b.addEventListener("click", function(){ soldListState.cond = b.getAttribute("data-cond"); renderSoldList(); });
   });
   document.querySelectorAll("#soldSortBar [data-sort]").forEach(function(b){
     b.addEventListener("click", function(){ soldListState.sort = b.getAttribute("data-sort"); renderSoldList(); });
