@@ -3176,21 +3176,56 @@ function doGet(e) {
     return records;
   }
 
+  /* Splits parsed rows into brand-new phones vs ones the platform already has.
+     Real IMEIs (13+ digits) are matched exactly; rows without a real IMEI are matched by
+     model + buy date + buy price + source, one-for-one, so two identical phones still import as two. */
+  function imeiDigitsOf(v){ return String(v||"").replace(/\D/g,""); }
+  function softKeyOf(r){ return [String(r.model||"").trim().toUpperCase().replace(/\s+/g," "), r.buyDate||"", r.buyPrice==null?"":r.buyPrice, String(r.source||"").trim().toUpperCase()].join("|"); }
+  function splitImportRecords(records){
+    var haveImei = {}, haveSoft = {};
+    state.phones.forEach(function(p){
+      var d = imeiDigitsOf(p.imei);
+      if(d.length>=13) haveImei[d] = (haveImei[d]||0)+1;
+      else { var k = softKeyOf(p); haveSoft[k] = (haveSoft[k]||0)+1; }
+    });
+    var fresh = [], existing = 0, repeated = 0, seenImei = {};
+    records.forEach(function(r){
+      var d = imeiDigitsOf(r.imei);
+      if(d.length>=13){
+        if(haveImei[d]){ existing++; return; }
+        if(seenImei[d]){ repeated++; return; }
+        seenImei[d] = true; fresh.push(r); return;
+      }
+      var k = softKeyOf(r);
+      if(haveSoft[k]){ haveSoft[k]--; existing++; return; }
+      fresh.push(r);
+    });
+    return {fresh:fresh, existing:existing, repeated:repeated};
+  }
+
   function updateImportSummary(){
-    var records = buildRecordsFromMapping();
+    var all = buildRecordsFromMapping();
+    var sp = splitImportRecords(all);
+    var records = sp.fresh;
     var counts = {iphone:0, samsung:0, other:0};
     records.forEach(function(r){ counts[r.brand]++; });
     var summaryEl = document.getElementById("importSummary");
-    if(!records.length){
+    var skipNote = (sp.existing||sp.repeated)
+      ? '<div class="badges" style="margin-top:8px; color:var(--gold);">'+(sp.existing?sp.existing+' ta telefon platformada allaqachon bor — o\'tkazib yuboriladi':'')+
+        (sp.existing&&sp.repeated?'; ':'')+(sp.repeated?sp.repeated+' ta takroriy IMEI faylning o\'zida — o\'tkazib yuboriladi':'')+'</div>'
+      : '';
+    if(!all.length){
       summaryEl.innerHTML = '<div class="big">Telefon topilmadi</div><div class="badges">Fayl bo\'sh bo\'lishi yoki "Ustunlarni o\'zim moslashtirmoqchiman" orqali tekshirish kerak bo\'lishi mumkin.</div>';
+    } else if(!records.length){
+      summaryEl.innerHTML = '<div class="big">Yangi telefon yo\'q</div>'+skipNote;
     } else {
       summaryEl.innerHTML =
-        '<div class="big">'+records.length+' ta telefon topildi</div>'+
+        '<div class="big">'+records.length+' ta yangi telefon topildi</div>'+
         '<div class="badges">'+
           '<span><span class="brandtag iphone">iPhone</span> <b>'+counts.iphone+'</b> ta</span>'+
           '<span><span class="brandtag samsung">Samsung</span> <b>'+counts.samsung+'</b> ta</span>'+
           '<span><span class="brandtag other">Boshqa</span> <b>'+counts.other+'</b> ta</span>'+
-        '</div>';
+        '</div>'+skipNote;
     }
     document.getElementById("runImportBtn").disabled = records.length===0 || !phonesCol;
   }
@@ -3239,7 +3274,7 @@ function doGet(e) {
 
   async function runImport(){
     if(!importParsed || !phonesCol) return;
-    var records = buildRecordsFromMapping();
+    var records = splitImportRecords(buildRecordsFromMapping()).fresh;
     if(!records.length) return;
     var btn = document.getElementById("runImportBtn");
     btn.disabled = true; setBtnLabel(btn, "Import qilinmoqda…");
