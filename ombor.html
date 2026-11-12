@@ -733,6 +733,10 @@
 
     <div id="importConfig" hidden>
       <div class="import-summary" id="importSummary"></div>
+      <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-dim); margin:2px 0 12px; cursor:pointer;">
+        <input type="checkbox" id="importSkipChk" style="width:16px; height:16px; accent-color:var(--accent);">
+        Platformada allaqachon bor telefonlarni o'tkazib yubor (odatda o'chiq — hammasi yuklanadi)
+      </label>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
         <button type="button" class="btn sm primary" id="aiSortBtn"><span class="btn-label">AI bilan tartiblash</span></button>
         <button type="button" class="btn sm ghost" id="aiSortOffBtn" hidden>Oddiy usulga qaytish</button>
@@ -3100,6 +3104,7 @@ function doGet(e) {
 
   function openImportModal(){
     importParsed = null; importExtra = [];
+    document.getElementById("importSkipChk").checked = false;
     document.getElementById("toggleAdvancedBtn").hidden = false;
     document.getElementById("importConfig").hidden = true;
     document.getElementById("importAdvanced").hidden = true;
@@ -3272,7 +3277,7 @@ function doGet(e) {
      model + buy date + buy price + source, one-for-one, so two identical phones still import as two. */
   function imeiDigitsOf(v){ return String(v||"").replace(/\D/g,""); }
   function softKeyOf(r){ return [String(r.model||"").trim().toUpperCase().replace(/\s+/g," "), r.buyDate||"", r.buyPrice==null?"":r.buyPrice, String(r.source||"").trim().toUpperCase()].join("|"); }
-  function splitImportRecords(records){
+  function splitImportRecords(records, skipExisting){
     var haveImei = {}, haveSoft = {};
     state.phones.forEach(function(p){
       var d = imeiDigitsOf(p.imei);
@@ -3304,12 +3309,14 @@ function doGet(e) {
       if(emitted[k] < allowed[k]){ emitted[k]++; fresh.push(r); return; }
       if(haveSoft[k]) existing++; else repeated++;
     });
-    return {fresh:fresh, existing:existing, repeated:repeated};
+    if(!skipExisting) fresh = records;           // default: keep EVERY phone, duplicates included
+    return {fresh:fresh, existing:existing, repeated:repeated, skipping:!!skipExisting};
   }
+  function importSkipExisting(){ var c = document.getElementById("importSkipChk"); return !!(c && c.checked); }
 
   function updateImportSummary(){
     var all = buildRecordsFromMapping();
-    var sp = splitImportRecords(all);
+    var sp = splitImportRecords(all, importSkipExisting());
     var records = sp.fresh;
     var counts = {iphone:0, samsung:0, other:0};
     records.forEach(function(r){ counts[r.brand]++; });
@@ -3319,17 +3326,20 @@ function doGet(e) {
           return '<span style="font-size:12px; color:var(--ink-dim);">• '+esc(pf.name||"fayl")+' — <b style="color:var(--ink)">'+buildRecordsFromParsed(pf).length+'</b> ta telefon'+(pf.aiRecords?' (AI)':'')+'</span>';
         }).join("")+'</div>'
       : '';
-    var skipNote = (sp.existing||sp.repeated)
-      ? '<div class="badges" style="margin-top:8px; color:var(--gold);">'+(sp.existing?sp.existing+' ta telefon platformada allaqachon bor — o\'tkazib yuboriladi':'')+
-        (sp.existing&&sp.repeated?'; ':'')+(sp.repeated?sp.repeated+' ta takroriy IMEI faylning o\'zida — o\'tkazib yuboriladi':'')+'</div>'
-      : '';
+    var skipNote = '';
+    if(sp.existing || sp.repeated){
+      var parts = [];
+      if(sp.existing) parts.push(sp.existing+" ta telefon platformada allaqachon bor"+(sp.skipping?" — o'tkazib yuboriladi":" — baribir yuklanadi"));
+      if(sp.repeated) parts.push(sp.repeated+" ta takroriy IMEI/qator"+(sp.skipping?" — o'tkazib yuboriladi":" — hammasi saqlanadi"));
+      skipNote = '<div class="badges" style="margin-top:8px; color:var(--gold);">'+parts.join("; ")+'</div>';
+    }
     if(!all.length){
       summaryEl.innerHTML = '<div class="big">Telefon topilmadi</div><div class="badges">Fayl bo\'sh bo\'lishi yoki "Ustunlarni o\'zim moslashtirmoqchiman" orqali tekshirish kerak bo\'lishi mumkin.</div>';
     } else if(!records.length){
-      summaryEl.innerHTML = '<div class="big">Yangi telefon yo\'q</div>'+perFile+skipNote;
+      summaryEl.innerHTML = '<div class="big">Yuklanadigan telefon yo\'q</div>'+perFile+skipNote;
     } else {
       summaryEl.innerHTML =
-        '<div class="big">'+records.length+' ta yangi telefon topildi</div>'+
+        '<div class="big">'+records.length+' ta telefon topildi</div>'+
         '<div class="badges">'+
           '<span><span class="brandtag iphone">iPhone</span> <b>'+counts.iphone+'</b> ta</span>'+
           '<span><span class="brandtag samsung">Samsung</span> <b>'+counts.samsung+'</b> ta</span>'+
@@ -3583,6 +3593,7 @@ function doGet(e) {
     btn.disabled = false; setBtnLabel(btn, "Havoladan o'qish");
   });
 
+  document.getElementById("importSkipChk").addEventListener("change", function(){ if(importParsed) updateImportSummary(); });
   document.getElementById("importStartRow").addEventListener("change", function(){
     if(!importParsed) return;
     var v = Math.max(1, parseInt(this.value,10)||1) - 1;
@@ -3594,7 +3605,7 @@ function doGet(e) {
 
   async function runImport(){
     if(!importParsed || !phonesCol) return;
-    var records = splitImportRecords(buildRecordsFromMapping()).fresh;
+    var records = splitImportRecords(buildRecordsFromMapping(), importSkipExisting()).fresh;
     if(!records.length) return;
     var btn = document.getElementById("runImportBtn");
     btn.disabled = true; setBtnLabel(btn, "Import qilinmoqda…");
