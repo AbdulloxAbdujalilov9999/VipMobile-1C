@@ -717,9 +717,9 @@
     <div class="modal-sub">Eski Excel faylingizni tanlang — dastur o'zi o'qib, iPhone/Samsung/Boshqa bo'limlarga taqsimlab qo'yadi.</div>
 
     <label class="import-drop" id="importDrop">
-      <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
+      <input type="file" id="importFile" accept=".xlsx,.xls,.csv" multiple>
       <div style="margin-bottom:8px;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
-      <div id="importDropText"><span class="btn-label">Faylni tanlash uchun shu yerga bosing</span></div>
+      <div id="importDropText"><span class="btn-label">Fayl(lar)ni tanlash uchun shu yerga bosing (bir nechta mumkin)</span></div>
     </label>
 
     <div class="field" style="margin-top:12px;">
@@ -1306,6 +1306,7 @@ function doGet(e) {
 
   var db = null, auth = null, phonesCol = null, notesDoc = null, sheetSyncDoc = null, monthsDoc = null;
   var importParsed = null;
+  var importExtra = [];   // 2nd, 3rd ... files when several are chosen at once
 
   /* ====================== iPhone / Samsung color + model data ====================== */
   var C_18 = [["Lavanda ko'k","#93a8c9"],["Shaftoli","#e8c2ab"],["Oq","#f2f2ee"],["Qora","#2e2e30"],["Yashil","#8fae94"]];
@@ -1648,16 +1649,35 @@ function doGet(e) {
     d.sellTime = fmtTime(d.soldAt);
     return d;
   }
+  /* Talks to the Apps Script and READS its answer (the script allows that), so a broken link,
+     a script without access, or a script error shows up instead of failing silently. */
+  async function sheetPost(body){
+    var res;
+    try{
+      res = await fetch(activeSheetSyncUrl(), {
+        method: "POST",
+        headers: {"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify(body)
+      });
+    }catch(e){ throw new Error("ulanib bo'lmadi — internet yoki havolani tekshiring"); }
+    var text = await res.text(), json = null;
+    try{ json = JSON.parse(text); }catch(e){}
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    if(!json) throw new Error("skript javob bermadi — havola eski/noto'g'ri yoki skript \"Anyone\" ruxsati bilan deploy qilinmagan");
+    if(json.ok===false) throw new Error(json.error || "skript xatosi");
+    return json;
+  }
+  var lastSheetErrToast = 0;
+  function noteSheetResult(ok, msg, noToast){
+    state.lastSync = {ok: ok, at: Date.now(), msg: msg||""};
+    renderSheetSyncBanner();
+    if(!ok && !noToast && Date.now()-lastSheetErrToast > 15000){ lastSheetErrToast = Date.now(); toast("Sheetga yozilmadi: "+msg, true); }
+  }
   function syncToSheet(action, id, data){
     if(!sheetSyncReady()) return;
-    try{
-      fetch(activeSheetSyncUrl(), {
-        method: "POST",
-        mode: "no-cors",
-        headers: {"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({action: action, id: id, data: enrichForSheet(data)})
-      }).catch(function(){});
-    }catch(e){ /* best-effort, never block the UI on sync failure */ }
+    sheetPost({action: action, id: id, data: enrichForSheet(data)})
+      .then(function(){ noteSheetResult(true); })
+      .catch(function(e){ noteSheetResult(false, e.message); });
   }
   function renderSheetSyncBanner(){
     var statusEl = document.getElementById("sheetSyncStatus");
@@ -1671,7 +1691,10 @@ function doGet(e) {
     if(linkInput && document.activeElement !== linkInput) linkInput.value = state.sheetLinkUrl || "";
     if(openBtn) openBtn.disabled = !state.sheetLinkUrl;
     if(sheetSyncReady()){
-      statusEl.textContent = "ulangan";
+      var tail = activeSheetSyncUrl().replace(/\/exec.*$/,"").slice(-6);
+      var ls = state.lastSync;
+      statusEl.textContent = "ulangan …"+tail+(ls ? (ls.ok ? " · oxirgi yozuv "+fmtTime(new Date(ls.at).toISOString())+" ✓" : " · XATO: "+ls.msg) : "");
+      statusEl.style.color = ls && !ls.ok ? "var(--danger)" : "";
       bannerEl.hidden = true;
       if(btn) btn.disabled = false;
     } else {
@@ -1683,16 +1706,15 @@ function doGet(e) {
   }
 
   async function bulkSyncToSheet(records){
-    if(!sheetSyncReady()) return false;
+    if(!sheetSyncReady()) return {ok:false, error:"Avval Sheet havolasini saqlang"};
     try{
-      await fetch(activeSheetSyncUrl(), {
-        method: "POST",
-        mode: "no-cors",
-        headers: {"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({action:"bulkUpsert", rows: records.map(function(p){ return {id:p.id, data:enrichForSheet(p)}; })})
-      });
-      return true;
-    }catch(e){ return false; }
+      var json = await sheetPost({action:"bulkUpsert", rows: records.map(function(p){ return {id:p.id, data:enrichForSheet(p)}; })});
+      noteSheetResult(true);
+      return {ok:true, count: json.count!=null ? json.count : records.length};
+    }catch(e){
+      noteSheetResult(false, e.message, true);
+      return {ok:false, error:e.message};
+    }
   }
 
   /** GET the Apps Script's ?action=export JSON (records + unidentified rows) from any sheet-sync URL. */
@@ -2971,8 +2993,8 @@ function doGet(e) {
     if(!sheetSyncReady()){ toast("Avval Sheet ulanishi kerak", true); return; }
     var btn = this;
     btn.disabled = true; setBtnLabel(btn, "Sinxronlanmoqda…");
-    var ok = await bulkSyncToSheet(state.phones);
-    toast(ok ? (state.phones.length+" ta yozuv Sheetga yuborildi") : "Sinxronlashda xatolik", !ok);
+    var r = await bulkSyncToSheet(state.phones);
+    toast(r.ok ? (r.count+" ta yozuv Sheetga yozildi") : "Sheetga yozilmadi: "+r.error, !r.ok);
     btn.disabled = false; setBtnLabel(btn, "Sheetga to'liq sinxronlash");
   });
   document.getElementById("sidebarSyncBtn").addEventListener("click", async function(){
@@ -2982,8 +3004,8 @@ function doGet(e) {
     try{
       var added = await checkSheetForNewRows(true);
       var known = {}; state.phones.forEach(function(p){ known[p.id] = true; });
-      var ok = await bulkSyncToSheet(state.phones.concat(added.filter(function(p){ return !known[p.id]; })));
-      toast(ok ? "Sinxronlash tekshirildi — ikkala tomon ham yangilandi" : "Sinxronlashda xatolik", !ok);
+      var r = await bulkSyncToSheet(state.phones.concat(added.filter(function(p){ return !known[p.id]; })));
+      toast(r.ok ? "Sinxronlash tugadi — "+r.count+" ta yozuv Sheetda" : "Sheetga yozilmadi: "+r.error, !r.ok);
     }catch(e){
       toast("Xatolik: "+e.message, true);
     }
@@ -3077,11 +3099,12 @@ function doGet(e) {
   ];
 
   function openImportModal(){
-    importParsed = null;
+    importParsed = null; importExtra = [];
+    document.getElementById("toggleAdvancedBtn").hidden = false;
     document.getElementById("importConfig").hidden = true;
     document.getElementById("importAdvanced").hidden = true;
     setBtnLabel(document.getElementById("toggleAdvancedBtn"), "Ustunlarni o'zim moslashtirmoqchiman");
-    setBtnLabel(document.getElementById("importDropText"), "Faylni tanlash uchun shu yerga bosing");
+    setBtnLabel(document.getElementById("importDropText"), "Fayl(lar)ni tanlash uchun shu yerga bosing (bir nechta mumkin)");
     document.getElementById("runImportBtn").disabled = true;
     document.getElementById("importFile").value = "";
     document.getElementById("importLinkInput").value = "";
@@ -3209,9 +3232,15 @@ function doGet(e) {
     updateImportSummary();
   }
 
+  function allImportFiles(){ return importParsed ? [importParsed].concat(importExtra) : []; }
   function buildRecordsFromMapping(){
-    if(importParsed.aiRecords) return importParsed.aiRecords.map(function(r){ return Object.assign({}, r); });
-    var rows = importParsed.rows, startRow = importParsed.startRow, mapping = importParsed.mapping;
+    var all = [];
+    allImportFiles().forEach(function(pf, fi){ buildRecordsFromParsed(pf).forEach(function(r){ r._f = fi; all.push(r); }); });
+    return all;
+  }
+  function buildRecordsFromParsed(pf){
+    if(pf.aiRecords) return pf.aiRecords.map(function(r){ return Object.assign({}, r); });
+    var rows = pf.rows, startRow = pf.startRow, mapping = pf.mapping;
     var fieldByCol = {};
     Object.keys(mapping).forEach(function(c){ if(mapping[c]) fieldByCol[c] = mapping[c]; });
     var records = [];
@@ -3250,17 +3279,30 @@ function doGet(e) {
       if(d.length>=13) haveImei[d] = (haveImei[d]||0)+1;
       else { var k = softKeyOf(p); haveSoft[k] = (haveSoft[k]||0)+1; }
     });
-    var fresh = [], existing = 0, repeated = 0, seenImei = {};
+    /* No-IMEI phones: the same item listed in two files counts once, identical twins inside ONE file still count twice */
+    var perFile = {}, allowed = {};
+    records.forEach(function(r){
+      if(imeiDigitsOf(r.imei).length>=13) return;
+      var k = softKeyOf(r), f = r._f||0;
+      perFile[k] = perFile[k] || {}; perFile[k][f] = (perFile[k][f]||0)+1;
+    });
+    Object.keys(perFile).forEach(function(k){
+      var mx = 0; Object.keys(perFile[k]).forEach(function(f){ mx = Math.max(mx, perFile[k][f]); });
+      allowed[k] = Math.max(0, mx - (haveSoft[k]||0));
+    });
+    var fresh = [], existing = 0, repeated = 0, seenImei = {}, emitted = {};
     records.forEach(function(r){
       var d = imeiDigitsOf(r.imei);
+      delete r._f;
       if(d.length>=13){
         if(haveImei[d]){ existing++; return; }
         if(seenImei[d]){ repeated++; return; }
         seenImei[d] = true; fresh.push(r); return;
       }
       var k = softKeyOf(r);
-      if(haveSoft[k]){ haveSoft[k]--; existing++; return; }
-      fresh.push(r);
+      emitted[k] = emitted[k]||0;
+      if(emitted[k] < allowed[k]){ emitted[k]++; fresh.push(r); return; }
+      if(haveSoft[k]) existing++; else repeated++;
     });
     return {fresh:fresh, existing:existing, repeated:repeated};
   }
@@ -3272,6 +3314,11 @@ function doGet(e) {
     var counts = {iphone:0, samsung:0, other:0};
     records.forEach(function(r){ counts[r.brand]++; });
     var summaryEl = document.getElementById("importSummary");
+    var perFile = allImportFiles().length>1
+      ? '<div class="badges" style="margin-top:8px; flex-direction:column; align-items:flex-start; gap:2px;">'+allImportFiles().map(function(pf){
+          return '<span style="font-size:12px; color:var(--ink-dim);">• '+esc(pf.name||"fayl")+' — <b style="color:var(--ink)">'+buildRecordsFromParsed(pf).length+'</b> ta telefon'+(pf.aiRecords?' (AI)':'')+'</span>';
+        }).join("")+'</div>'
+      : '';
     var skipNote = (sp.existing||sp.repeated)
       ? '<div class="badges" style="margin-top:8px; color:var(--gold);">'+(sp.existing?sp.existing+' ta telefon platformada allaqachon bor — o\'tkazib yuboriladi':'')+
         (sp.existing&&sp.repeated?'; ':'')+(sp.repeated?sp.repeated+' ta takroriy IMEI faylning o\'zida — o\'tkazib yuboriladi':'')+'</div>'
@@ -3279,7 +3326,7 @@ function doGet(e) {
     if(!all.length){
       summaryEl.innerHTML = '<div class="big">Telefon topilmadi</div><div class="badges">Fayl bo\'sh bo\'lishi yoki "Ustunlarni o\'zim moslashtirmoqchiman" orqali tekshirish kerak bo\'lishi mumkin.</div>';
     } else if(!records.length){
-      summaryEl.innerHTML = '<div class="big">Yangi telefon yo\'q</div>'+skipNote;
+      summaryEl.innerHTML = '<div class="big">Yangi telefon yo\'q</div>'+perFile+skipNote;
     } else {
       summaryEl.innerHTML =
         '<div class="big">'+records.length+' ta yangi telefon topildi</div>'+
@@ -3287,15 +3334,14 @@ function doGet(e) {
           '<span><span class="brandtag iphone">iPhone</span> <b>'+counts.iphone+'</b> ta</span>'+
           '<span><span class="brandtag samsung">Samsung</span> <b>'+counts.samsung+'</b> ta</span>'+
           '<span><span class="brandtag other">Boshqa</span> <b>'+counts.other+'</b> ta</span>'+
-        '</div>'+skipNote;
+        '</div>'+perFile+skipNote;
     }
     document.getElementById("runImportBtn").disabled = records.length===0 || !phonesCol;
   }
 
-  function loadWorkbookFromBuffer(buffer){
+  function parseWorkbookBuffer(buffer, name){
     try{
-      var data = new Uint8Array(buffer);
-      var wb = XLSX.read(data, {type:"array"});
+      var wb = XLSX.read(new Uint8Array(buffer), {type:"array"});
       var ws = wb.Sheets[wb.SheetNames[0]];
       var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:"", raw:true});
       var colCount = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
@@ -3307,28 +3353,40 @@ function doGet(e) {
         if(genericHits >= nonEmptyVals.length*0.5) continue; // looks like an auto-generated header row, not real data
         startRow = i; break;
       }
-      importParsed = {rows: rows, colCount: colCount, startRow: startRow, mapping: {}, aiRecords: null};
-      aiSortReset();
-      importParsed.mapping = guessMapping(rows, startRow, colCount);
-      document.getElementById("importStartRow").value = startRow+1;
-      document.getElementById("importTotalRows").value = (rows.length-startRow)+" (jami "+rows.length+")";
-      document.getElementById("importConfig").hidden = false;
-      renderMapTable();
-      return true;
+      return {name: name||"fayl", rows: rows, colCount: colCount, startRow: startRow, mapping: guessMapping(rows, startRow, colCount), aiRecords: null};
     }catch(err){
-      toast("Faylni o'qishda xatolik: "+err.message, true);
-      return false;
+      toast((name||"Fayl")+" o'qishda xatolik: "+err.message, true);
+      return null;
     }
   }
-  document.getElementById("importFile").addEventListener("change", function(e){
-    var file = e.target.files[0];
-    if(!file) return;
-    setBtnLabel(document.getElementById("importDropText"), file.name);
-    var reader = new FileReader();
-    reader.onload = function(ev){ loadWorkbookFromBuffer(ev.target.result); };
-    reader.readAsArrayBuffer(file);
+  function setImportFiles(list){
+    importParsed = list[0]; importExtra = list.slice(1);
+    aiSortReset();
+    var multi = importExtra.length>0;
+    document.getElementById("importStartRow").value = importParsed.startRow+1;
+    document.getElementById("importTotalRows").value = (importParsed.rows.length-importParsed.startRow)+" (jami "+importParsed.rows.length+")";
+    document.getElementById("toggleAdvancedBtn").hidden = multi;     // manual column mapping is for one file at a time
+    if(multi) document.getElementById("importAdvanced").hidden = true;
+    document.getElementById("importConfig").hidden = false;
+    renderMapTable();
+  }
+  function loadWorkbookFromBuffer(buffer){
+    var pf = parseWorkbookBuffer(buffer, "havola");
+    if(!pf) return false;
+    setImportFiles([pf]); return true;
+  }
+  document.getElementById("importFile").addEventListener("change", async function(e){
+    var files = Array.from(e.target.files||[]);
+    if(!files.length) return;
+    setBtnLabel(document.getElementById("importDropText"), files.length===1 ? files[0].name : files.length+" ta fayl tanlandi");
+    var parsed = [];
+    for(var i=0;i<files.length;i++){
+      var buf = await files[i].arrayBuffer();
+      var pf = parseWorkbookBuffer(buf, files[i].name);
+      if(pf) parsed.push(pf);
+    }
+    if(parsed.length) setImportFiles(parsed);
   });
-
 
   /* ====================== AI: sort messy Excel rows with Claude ====================== */
   var AI_MODEL = "claude-sonnet-5";
@@ -3359,13 +3417,13 @@ function doGet(e) {
   var AI_SYSTEM = [
     "You clean up rows from a phone reseller's Excel sheet (Uzbekistan; text is Uzbek/Russian/English slang, often misspelled).",
     "Each input row is {i, cells:{A:..., B:...}}. Columns are NOT labelled and differ between files; infer each cell's meaning from its content.",
-    "Return ONLY a JSON array, one object per input row that is a real phone/device (skip empty rows, subtotal rows, formula errors like #VALUE!, and rows that are only a note). Keep the input index as \"i\".",
+    "Call the save_phones tool with one object per input row that is a real phone/device (skip empty rows, subtotal rows, formula errors like #VALUE!, and rows that are only a note). Keep the input index as \"i\".",
     "Fields: i (number), model (string: brand+model+storage+colour in the seller's own words, cleaned; keep battery %, region code like KH/A and the word NEW if present),",
     "brand (\"iphone\"|\"samsung\"|\"other\"), isNew (true if the sheet marks it NEW/NNEW/unopened), imeiBox (true if the box is present: BOR), imei (digits and dashes exactly as written, \"\" if absent or a placeholder like REMONT or 123-123-123),",
     "source (who it was bought from), sourcePhone (their phone number if any), buyDate and sellDate (\"YYYY-MM-DD\", \"\" if absent; two-digit years mean 20YY; day comes first in dd.mm.yy), buyPrice and sellPrice (numbers in USD or null; sellPrice only if it was actually sold),",
     "buyer (who bought it / who currently holds it), buyerPhone, note (anything else useful: remarks, who owes money, repair state, return notes), status.",
     "status: \"sold\" if there is a sell price or the note says it was sold; \"lent\" if it is currently with another person/shop to sell or try (words like DA, BERADI, 'at X's'), without a sale; \"lost\" if lost/stolen; otherwise \"stock\".",
-    "Ignore constant filler cells such as a column that just says KR. Never invent data. Output the JSON array and nothing else."
+    "Ignore constant filler cells such as a column that just says KR. Never invent data."
   ].join("\n");
 
   function aiCellText(v){
@@ -3378,22 +3436,46 @@ function doGet(e) {
     if(v instanceof Date) return v.toISOString().slice(0,10);
     return String(v).trim();
   }
+  var AI_TOOL = {
+    name: "save_phones",
+    description: "Save the cleaned, structured phones found in the rows.",
+    input_schema: {
+      type: "object",
+      properties: { phones: { type: "array", items: { type: "object", properties: {
+        i: {type:"integer"}, model: {type:"string"}, brand: {type:"string", enum:["iphone","samsung","other"]},
+        isNew: {type:"boolean"}, imeiBox: {type:"boolean"}, imei: {type:"string"},
+        source: {type:"string"}, sourcePhone: {type:"string"},
+        buyDate: {type:"string"}, sellDate: {type:"string"},
+        buyPrice: {type:["number","null"]}, sellPrice: {type:["number","null"]},
+        buyer: {type:"string"}, buyerPhone: {type:"string"}, note: {type:"string"},
+        status: {type:"string", enum:["stock","sold","lent","lost"]}
+      }, required: ["i","model","status"] } } },
+      required: ["phones"]
+    }
+  };
   async function aiCall(key, userText){
-    var res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST",
-      headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-      body: JSON.stringify({model:AI_MODEL, max_tokens:8000, system:AI_SYSTEM, messages:[{role:"user", content:userText}]})
-    });
+    var res;
+    try{
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body: JSON.stringify({model:AI_MODEL, max_tokens:8000, system:AI_SYSTEM, tools:[AI_TOOL], tool_choice:{type:"tool", name:"save_phones"}, messages:[{role:"user", content:userText}]})
+      });
+    }catch(e){ var ne = new Error("Anthropic'ga ulanib bo'lmadi (internet yoki brauzer bloklagan)"); ne.status = 0; throw ne; }
     if(!res.ok){
       var msg = "HTTP "+res.status;
       try{ var j = await res.json(); if(j && j.error && j.error.message) msg += ": "+j.error.message; }catch(e){}
       var err = new Error(msg); err.status = res.status; throw err;
     }
     var data = await res.json();
-    var text = (data.content||[]).map(function(b){ return b.text||""; }).join("");
-    var a = text.indexOf("["), b = text.lastIndexOf("]");
-    if(a===-1 || b===-1) throw new Error("AI javobi tushunarsiz");
-    return JSON.parse(text.slice(a, b+1));
+    if(data.stop_reason === "max_tokens") throw new Error("AI javobi uzunligidan kesildi — qatorlar kamroq bo'lakda yuboriladi, qayta urinib ko'ring");
+    var blocks = data.content || [];
+    var tu = blocks.filter(function(b){ return b.type==="tool_use"; })[0];
+    if(tu && tu.input && Array.isArray(tu.input.phones)) return tu.input.phones;
+    var text = blocks.map(function(b){ return b.text||""; }).join("");       // fallback: plain JSON text
+    var a = text.indexOf("["), b2 = text.lastIndexOf("]");
+    if(a!==-1 && b2!==-1){ try{ return JSON.parse(text.slice(a, b2+1)); }catch(e){} }
+    throw new Error("AI javobi tushunarsiz: "+(text||JSON.stringify(blocks)).slice(0,120));
   }
   function aiCleanRecord(o){
     var s = function(v){ return v==null ? "" : String(v).trim(); };
@@ -3414,38 +3496,43 @@ function doGet(e) {
     var key = aiGetKey();
     if(!key){ st.style.color="var(--danger)"; st.textContent = "Avval Moliya > AI yordamchi bo'limiga kalitni kiriting"; return; }
     var btn = this; btn.disabled = true; setBtnLabel(btn, "AI ishlayapti…"); st.style.color = "var(--ink-dim)";
-    var rows = importParsed.rows, start = importParsed.startRow, items = [];
-    for(var r=start; r<rows.length; r++){
-      var cells = {}, any = false;
-      (rows[r]||[]).forEach(function(v, c){
-        var t = aiCellText(v); if(t==="" || /^#[A-Z\/!?0]+/.test(t)) return;
-        cells[String.fromCharCode(65+(c%26))] = t; any = true;
-      });
-      if(any) items.push({i:r, cells:cells});
-    }
-    var BATCH = 40, out = [];
+    var files = allImportFiles(), results = [], totalIn = 0, BATCH = 30;
     try{
-      for(var k=0; k<items.length; k+=BATCH){
-        st.textContent = "AI ishlayapti… "+Math.min(k+BATCH, items.length)+" / "+items.length;
-        var part = await aiCall(key, JSON.stringify(items.slice(k, k+BATCH)));
-        part.forEach(function(o){ var rec = aiCleanRecord(o||{}); if(rec) out.push(rec); });
+      for(var f=0; f<files.length; f++){
+        var pf = files[f], rows = pf.rows, items = [], out = [];
+        for(var r=pf.startRow; r<rows.length; r++){
+          var cells = {}, any = false;
+          (rows[r]||[]).forEach(function(v, c){
+            var t = aiCellText(v); if(t==="" || /^#[A-Z\/!?0]+/.test(t)) return;
+            cells[String.fromCharCode(65+(c%26))] = t; any = true;
+          });
+          if(any) items.push({i:r, cells:cells});
+        }
+        totalIn += items.length;
+        for(var k=0; k<items.length; k+=BATCH){
+          st.textContent = "AI ishlayapti… "+(files.length>1 ? (f+1)+"/"+files.length+"-fayl, " : "")+Math.min(k+BATCH, items.length)+" / "+items.length+" qator";
+          var part = await aiCall(key, JSON.stringify(items.slice(k, k+BATCH)));
+          part.forEach(function(o){ var rec = aiCleanRecord(o||{}); if(rec) out.push(rec); });
+        }
+        results.push(out);
       }
-      if(!out.length) throw new Error("AI hech narsa topmadi");
-      importParsed.aiRecords = out;
-      st.style.color = "var(--success)"; st.textContent = "AI "+out.length+" ta telefonni tartibladi. Ro'yxatni tekshirib, yuklashingiz mumkin.";
+      var total = results.reduce(function(s,a){ return s+a.length; }, 0);
+      if(!total) throw new Error("AI hech narsa topmadi");
+      files.forEach(function(pf, idx){ pf.aiRecords = results[idx].length ? results[idx] : null; });
+      st.style.color = "var(--success)"; st.textContent = "AI "+totalIn+" qatordan "+total+" ta telefonni tartibladi. Ro'yxatni tekshirib, yuklashingiz mumkin.";
       document.getElementById("aiSortOffBtn").hidden = false;
       updateImportSummary();
     }catch(e){
-      importParsed.aiRecords = null;
+      files.forEach(function(pf){ pf.aiRecords = null; });
       st.style.color = "var(--danger)";
-      st.textContent = (e.status===401 ? "Kalit noto'g'ri yoki bekor qilingan. " : "AI xatosi: ")+e.message+" — oddiy usul saqlanib qoldi.";
+      st.textContent = (e.status===401 ? "Kalit qabul qilinmadi (401) — bu haqiqiy API kalit emas yoki bekor qilingan. " : e.status===429 ? "Limit/balans muammosi (429). " : "AI xatosi: ")+e.message+" — oddiy usul saqlanib qoldi.";
       updateImportSummary();
     }
     btn.disabled = false; setBtnLabel(btn, "AI bilan tartiblash");
   });
   document.getElementById("aiSortOffBtn").addEventListener("click", function(){
-    if(!importParsed) return;
-    importParsed.aiRecords = null; aiSortReset(); updateImportSummary();
+    allImportFiles().forEach(function(pf){ pf.aiRecords = null; });
+    aiSortReset(); updateImportSummary();
   });
 
   /* ---- import straight from a pasted OneDrive / SharePoint / direct .xlsx link ---- */
@@ -3482,7 +3569,7 @@ function doGet(e) {
     if(!/^https?:\/\//i.test(link)){ statusEl.style.color = "var(--danger)"; statusEl.textContent = "Havola http:// yoki https:// bilan boshlanishi kerak"; return; }
     var btn = this; btn.disabled = true; setBtnLabel(btn, "O'qilmoqda…");
     statusEl.style.color = "var(--ink-dim)"; statusEl.textContent = "Havoladan fayl yuklanmoqda…";
-    importParsed = null; document.getElementById("importConfig").hidden = true; document.getElementById("runImportBtn").disabled = true;
+    importParsed = null; importExtra = []; document.getElementById("importConfig").hidden = true; document.getElementById("runImportBtn").disabled = true;
     try{
       var buf = await fetchExcelFromLink(link);
       if(loadWorkbookFromBuffer(buf)){
@@ -3533,7 +3620,7 @@ function doGet(e) {
         progBar.style.width = Math.round(done/records.length*100)+"%";
       }
       toast(done+" ta yozuv import qilindi");
-      if(sheetSyncReady()) bulkSyncToSheet(state.phones.concat(imported));
+      if(sheetSyncReady()) bulkSyncToSheet(state.phones.concat(imported)).then(function(r){ if(r.ok) toast(r.count+" ta yozuv Sheetga yozildi"); });
       closeImportModal();
     }catch(e){
       toast("Import xatosi: "+(e.code||e.message), true);
