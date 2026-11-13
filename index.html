@@ -1098,6 +1098,9 @@ function formatSheet_(sh, color) {
     sh.getRange(2, 8, dataRows, 1).setNumberFormat(DATE_FORMAT);  // bought date
     sh.getRange(2, 10, dataRows, 1).setNumberFormat(DATE_FORMAT); // sold date
     sh.getRange(2, 12, dataRows, 2).setNumberFormat('"$"#,##0');  // bought/sold rate
+    sh.getRange(2, 4, dataRows, 1).setNumberFormat('@');          // phone number (text: keeps +998 / leading zeros)
+    sh.getRange(2, 7, dataRows, 1).setNumberFormat('@');          // IMEI (text: never 3.5E+14)
+    sh.getRange(2, 15, dataRows, 1).setNumberFormat('@');         // buyer phone
     sh.getRange(2, 9, dataRows, 1).setNumberFormat('@');          // bought time  (plain text, so "14:35" stays "14:35")
     sh.getRange(2, 11, dataRows, 1).setNumberFormat('@');         // sold time
   }, 'number formats');
@@ -1113,15 +1116,19 @@ function rowFor_(rec) {
     rec.buyDate || '', rec.buyTime || '', rec.sellDate || '', rec.sellTime || '',
     rec.buyPrice != null ? rec.buyPrice : '', rec.sellPrice != null ? rec.sellPrice : '',
     rec.buyer || '', rec.buyerPhone || '',
-    rec.isNew ? 'Yangi' : '',
+    rec.isNew ? 'Yangi' : 'Ishlatilgan',
     rec.brand || ''
   ];
 }
 function blankRow_() { return HEADERS.map(function () { return ''; }); }
 function dividerRow_(label) { var r = blankRow_(); r[2] = label; return r; }
 
+function sheetTz_() {
+  try { return SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(); } catch (e) { return Session.getScriptTimeZone(); }
+}
 function dateBack_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  // same time zone as timeBack_ (the spreadsheet's), otherwise dates can shift a day when the script zone differs
+  if (v instanceof Date) return Utilities.formatDate(v, sheetTz_(), 'yyyy-MM-dd');
   return v || '';
 }
 function timeBack_(v) {
@@ -1146,7 +1153,8 @@ function readRows_(sh) {
   var values = sh.getRange(2, 1, lastRow - 1, width).getValues();
   return values.map(function (row) { var r = row.slice(); while (r.length < HEADERS.length) r.push(''); return r; });
 }
-function isNewModel_(model) { return /NEW/i.test(model || ''); }
+function isNewModel_(model) { return /NEW/i.test(model || '') && !/RENEW/i.test(model || ''); }
+function sv_(v) { return v == null ? '' : String(v); }   // keep IMEI / phone cells as text even if Sheets turned them into numbers
 function readSheetRecords_(sh) {
   var out = [];
   readRows_(sh).forEach(function (row) {
@@ -1154,13 +1162,13 @@ function readSheetRecords_(sh) {
     if (!id) return;
     out.push({
       id: id, status: row[1] || 'stock',
-      source: row[2] || '', sourcePhone: row[3] || '', model: row[4] || '',
-      imeiBox: row[5] === 'Bor', imei: row[6] || '',
+      source: sv_(row[2]), sourcePhone: sv_(row[3]), model: sv_(row[4]),
+      imeiBox: row[5] === 'Bor', imei: sv_(row[6]),
       buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
       sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
       buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
-      buyer: row[13] || '', buyerPhone: row[14] || '',
-      isNew: row[15] === 'Yangi' || isNewModel_(row[4]),
+      buyer: sv_(row[13]), buyerPhone: sv_(row[14]),
+      isNew: row[15] === 'Yangi' ? true : (row[15] === 'Ishlatilgan' ? false : isNewModel_(row[4])),
       brandCell: row[16] || ''
     });
   });
@@ -1200,18 +1208,32 @@ function buildGroupedRows_(items, partyFns) {
 
 /** Rows someone typed straight into a tab (no ID yet). The platform adopts them on its next check;
  *  until then every rewrite MUST keep them, otherwise a normal platform sync would silently erase them. */
+var DIVIDER_RE = /^(BAND|SOTILGAN) \(\d+ ta\)$/;
 function readPendingRows_(sh) {
   var out = [];
   readRows_(sh).forEach(function (row) {
     if (row[0]) return;                               // has an ID: normal record
-    if (!row[4] && !row[6]) return;                   // blank or divider row (no model, no IMEI)
-    out.push(row);
+    var hasData = false;
+    for (var i = 2; i <= 14; i++) { if (row[i] !== '' && row[i] != null) { hasData = true; break; } }
+    if (!hasData) return;                             // blank row
+    if (!row[4] && !row[6] && DIVIDER_RE.test(String(row[2]).trim())) return;   // our own BAND / SOTILGAN divider
+    out.push(row);                                    // anything else typed in (even half a row) is kept
   });
   return out;
 }
 function norm_(v) { return String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ' '); }
+/** Same reading of a price as the platform (parseFlexNum): "$1,200" / "1 200" / "1,5" / 1200. */
+function priceNorm_(v) {
+  if (v === '' || v == null) return '';
+  if (typeof v === 'number') return v;
+  var s = String(v).replace(/\$/g, '').replace(/\s+/g, '');
+  if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, ''); else s = s.replace(/,/g, '.');
+  if (s === '') return '';
+  var n = Number(s);
+  return isNaN(n) ? '' : n;
+}
 function softKey_(model, imei, buyPrice, source) {
-  return [norm_(model), String(imei || '').replace(/\D/g, ''), buyPrice === '' || buyPrice == null ? '' : Number(buyPrice), norm_(source)].join('|');
+  return [norm_(model), String(imei || '').replace(/\D/g, ''), priceNorm_(buyPrice), norm_(source)].join('|');
 }
 function pendingKey_(row) { return softKey_(row[4], row[6], row[11], row[2]); }
 function recKey_(rec) { return softKey_(rec.model, rec.imei, rec.buyPrice, rec.source); }
@@ -1224,11 +1246,17 @@ function recFrom_(id, d) {
     buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
     buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
     buyer: d.buyer || '', buyerPhone: d.buyerPhone || '',
-    isNew: !!d.isNew || isNewModel_(d.model)
+    isNew: (d.isNew === undefined || d.isNew === null) ? isNewModel_(d.model) : !!d.isNew
   };
 }
 
 function writeBody_(sh, rows) {
+  try {
+    var need = rows.length + 1;
+    if (typeof sh.getMaxRows === 'function' && typeof sh.insertRowsAfter === 'function' && need > sh.getMaxRows()) {
+      sh.insertRowsAfter(sh.getMaxRows(), need - sh.getMaxRows() + 100);   // a new sheet only has 1000 rows
+    }
+  } catch (e) { Logger.log('grow sheet failed: ' + e); }
   var lastRow = sh.getLastRow();
   if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, HEADERS.length).clearContent();
   if (rows.length) sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
@@ -1411,13 +1439,13 @@ function exportAllData_(ss) {
       if (!id && !model && !row[6]) return; // blank/divider row
       var rec = {
         id: id || null, status: row[1] || 'stock', brand: isBrandTab ? def.key : '',
-        source: row[2] || '', sourcePhone: row[3] || '', model: model || '',
-        imeiBox: row[5] === 'Bor', imei: row[6] || '',
+        source: sv_(row[2]), sourcePhone: sv_(row[3]), model: sv_(model),
+        imeiBox: row[5] === 'Bor', imei: sv_(row[6]),
         buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
         sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
         buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
-        buyer: row[13] || '', buyerPhone: row[14] || '',
-        isNew: def.key === 'new' || row[15] === 'Yangi' || isNewModel_(model)
+        buyer: sv_(row[13]), buyerPhone: sv_(row[14]),
+        isNew: def.key === 'new' || row[15] === 'Yangi' || (row[15] !== 'Ishlatilgan' && isNewModel_(model))
       };
       if (id) {
         if (isBrandTab || def.key === 'new') {              // Barcha only repeats the others
@@ -1714,7 +1742,9 @@ function doGet(e) {
     if(p.length<2) return null;
     return p[0]+"-"+p[1];
   }
-  function isNewPhone(p){ return !!(p && (p.isNew || /NEW/i.test(p.model||""))); }
+  function isNewText(model){ return /NEW/i.test(model||"") && !/RENEW/i.test(model||""); }
+  /* An explicit true/false (the "Yangi" checkbox) always wins; only phones that were never flagged fall back to the word NEW in the name. */
+  function isNewPhone(p){ return !!p && (p.isNew===true || ((p.isNew===undefined || p.isNew===null) && isNewText(p.model))); }
   /* New phones live ONLY in "Yangi Telefonlar" - they are not repeated in the iPhone / Samsung / Boshqa lists. */
   var TYPE_TESTS = {
     iphone:  function(p){ return p.brand==="iphone"  && !isNewPhone(p); },
@@ -1762,6 +1792,8 @@ function doGet(e) {
       }catch(e){}
     }
     var s = String(v).trim();
+    var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(iso) return iso[1]+"-"+iso[2]+"-"+iso[3];
     var m = s.match(/^(\d{1,2})[.,\/\-]\s*(\d{1,2})[.,\/\-]\s*(\d{2,4})/);
     if(!m) return "";
     var day=+m[1], mon=+m[2], y=m[3];
@@ -1772,7 +1804,8 @@ function doGet(e) {
   function parseFlexNum(v){
     if(v===null || v===undefined || v==="") return null;
     if(typeof v === "number") return v;
-    var s = String(v).trim().replace(/\$/g,"").replace(/\s+/g,"").replace(/,/g,".");
+    var s = String(v).trim().replace(/\$/g,"").replace(/\s+/g,"");
+    if(/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g,""); else s = s.replace(/,/g,".");   // "1,200" = 1200, "1,5" = 1.5
     if(s==="" || isNaN(Number(s))) return null;
     return Number(s);
   }
@@ -1859,9 +1892,13 @@ function doGet(e) {
     renderSheetSyncBanner();
     if(!ok && !noToast && Date.now()-lastSheetErrToast > 15000){ lastSheetErrToast = Date.now(); toast("Sheetga yozilmadi: "+msg, true); }
   }
+  var sheetWriteQueue = Promise.resolve();
   function syncToSheet(action, id, data){
     if(!sheetSyncReady()) return;
-    sheetPost({action: action, id: id, data: enrichForSheet(data)})
+    var body = {action: action, id: id, data: enrichForSheet(data)};
+    /* one write at a time, in the order the changes were made (a slow older write can no longer land after a newer one) */
+    sheetWriteQueue = sheetWriteQueue
+      .then(function(){ return sheetPost(body); })
       .then(function(){ noteSheetResult(true); })
       .catch(function(e){ noteSheetResult(false, e.message); });
   }
@@ -1916,8 +1953,9 @@ function doGet(e) {
   function sheetIdFromUrl(u){ var m = String(u||"").match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/); return m ? m[1] : ""; }
 
   var sheetCheckInFlight = false;
-  var sheetSeenPending = {};     // typed-in rows seen at the previous check (content hash -> true)
-  var sheetAdoptedRows = {};     // content hash -> created record, so a failed "adopt" is retried, never duplicated
+  var sheetSeenPending = {};     // typed-in rows seen at the previous check (occurrence key -> true)
+  var sheetAdoptedRows = {};     // occurrence key -> {rec, tries}: a failed "adopt" is retried, never duplicated
+  var sheetOwnIds = {};          // ids of phones THIS browser created from Sheet rows
   function pendingRowHash(r){
     return [r.sheetName, r.model, r.imei, r.buyDate, r.buyTime, r.sellDate, r.sellTime, r.buyPrice, r.sellPrice, r.source, r.buyer].join("|");
   }
@@ -1927,29 +1965,31 @@ function doGet(e) {
     return parseFlexDate(v);
   }
   /** Turns a row typed straight into the Sheet into a platform record (dates/times/prices read the same
-   *  forgiving way the Excel import reads them; status is worked out from what was filled in). */
+   *  forgiving way the Excel import reads them; status is worked out from what was filled in).
+   *  A buy/sell time is only stored if the row really has one - nothing is invented. */
   function phoneFromSheetRow(r, seq){
     var now = new Date().toISOString();
     var buyDate = sheetDate(r.buyDate), sellDate = sheetDate(r.sellDate);
     var buyPrice = parseFlexNum(r.buyPrice), sellPrice = parseFlexNum(r.sellPrice);
     var buyTime = parseFlexTime(r.buyTime), sellTime = parseFlexTime(r.sellTime);
     var buyer = String(r.buyer||"").trim();
-    var status = (r.status && r.status!=="stock") ? r.status : (sellPrice!=null ? "sold" : ((buyer||sellDate) ? "lent" : "stock"));
+    var status = (["sold","lent","lost"].indexOf(r.status)!==-1) ? r.status : (sellPrice!=null ? "sold" : ((buyer||sellDate) ? "lent" : "stock"));
     var data = {
-      brand: r.brand || classifyBrand(r.model), status: status, isNew: !!r.isNew || /NEW/i.test(r.model),
+      brand: r.brand || classifyBrand(r.model), status: status, isNew: !!r.isNew || isNewText(r.model),
       source: String(r.source||"").trim(), sourcePhone: String(r.sourcePhone||"").trim(), model: String(r.model||"").trim(),
       imeiBox: !!r.imeiBox, imei: String(r.imei||"").trim(),
       buyDate: buyDate, sellDate: sellDate, buyPrice: buyPrice, sellPrice: sellPrice,
       buyer: buyer, buyerPhone: String(r.buyerPhone||"").trim(),
-      note:"", sellNote:"", createdAt: (buyDate && buyTime) ? isoFromDateTime(buyDate, buyTime) : now,
-      updatedAt: now, seq: seq
+      note:"", sellNote:"", updatedAt: now, seq: seq
     };
-    if(status==="sold") data.soldAt = (sellDate && sellTime) ? isoFromDateTime(sellDate, sellTime) : now;
+    if(buyDate && buyTime) data.createdAt = isoFromDateTime(buyDate, buyTime);
+    if(status==="sold" && sellDate && sellTime) data.soldAt = isoFromDateTime(sellDate, sellTime);
     return data;
   }
   /** Two-way sync: rows typed straight into the Sheet (no ID yet) become platform records.
    *  Automatic checks wait until a row has been left untouched for one check (and has a model and a buy price),
    *  so a phone that is still being typed is never grabbed half-finished. force=true (buttons) skips that wait.
+   *  Identical rows are told apart by their order, so two identical phones typed in are two phones.
    *  The Apps Script keeps typed-in rows safe until this adopts them. */
   async function checkSheetForNewRows(silent, force){
     if(!sheetSyncReady() || !phonesCol || sheetCheckInFlight) return [];
@@ -1960,27 +2000,43 @@ function doGet(e) {
     try{
       var json = await fetchSheetExport(activeSheetSyncUrl());
       var rows = json.unidentified || [];
-      var nowSeen = {}, ready = [], waiting = 0;
+      var nowSeen = {}, occ = {}, ready = [], waiting = 0;
       rows.forEach(function(r){
-        var h = pendingRowHash(r);
-        nowSeen[h] = true;
+        var base = pendingRowHash(r);
+        occ[base] = (occ[base]||0)+1;
+        var key = base+"#"+occ[base];
+        nowSeen[key] = true;
         if(!r.model){ return; }
         var complete = parseFlexNum(r.buyPrice)!=null;
-        if(!force && !(sheetSeenPending[h] && complete)){ waiting++; return; }
-        ready.push({row:r, hash:h});
+        if(!force && !(sheetSeenPending[key] && complete)){ waiting++; return; }
+        ready.push({row:r, key:key});
       });
       sheetSeenPending = nowSeen;
+      Object.keys(sheetAdoptedRows).forEach(function(k){ if(!nowSeen[k]) delete sheetAdoptedRows[k]; });   // row is gone from the Sheet = adopted
+
+      /* phones another device created in the last few seconds from the very same rows (its adopt may not have cleaned the Sheet yet) */
+      var recentByKey = {}, cutoff = Date.now()-20000;
+      state.phones.forEach(function(p){
+        if(sheetOwnIds[p.id] || !p.updatedAt || Date.parse(p.updatedAt)<cutoff) return;
+        var k = softKeyOf(p); recentByKey[k] = (recentByKey[k]||0)+1;
+      });
+
       var toAdopt = [];
       for(var i=0;i<ready.length;i++){
         var item = ready[i];
-        var rec = sheetAdoptedRows[item.hash];
-        if(!rec){
-          var data = phoneFromSheetRow(item.row, Date.now()+i);
-          var docRef = await phonesCol.add(data);
-          rec = Object.assign({id: docRef.id}, data);
-          sheetAdoptedRows[item.hash] = rec;
-          created.push(rec);
+        var entry = sheetAdoptedRows[item.key];
+        if(entry){                                           // created earlier but the Sheet still shows the row: retry the clean-up a few times
+          if(entry.tries<3){ entry.tries++; toAdopt.push(entry.rec); }
+          continue;
         }
+        var data = phoneFromSheetRow(item.row, Date.now()+i);
+        var sk = softKeyOf(data);
+        if(recentByKey[sk]>0){ recentByKey[sk]--; continue; }
+        var docRef = await phonesCol.add(data);
+        var rec = Object.assign({id: docRef.id}, data);
+        sheetOwnIds[docRef.id] = true;
+        sheetAdoptedRows[item.key] = {rec:rec, tries:1};
+        created.push(rec);
         toAdopt.push(rec);
       }
       if(toAdopt.length){
@@ -1993,7 +2049,6 @@ function doGet(e) {
           } else throw e;
         }
         noteSheetResult(true);
-        toAdopt.forEach(function(rec){ Object.keys(sheetAdoptedRows).forEach(function(h){ if(sheetAdoptedRows[h]===rec) delete sheetAdoptedRows[h]; }); });
       }
       if(created.length) toast(created.length+" ta yangi telefon Sheetdan qo'shildi");
       else if(!silent) toast(waiting ? waiting+" ta qator hali to'liq emas (model va narx kerak) — yozib bo'lgach yana tekshiring" : "Sheetda yangi qator topilmadi");
@@ -2153,7 +2208,10 @@ function doGet(e) {
 
     if(!state.sheetCheckInterval){
       state.sheetCheckInterval = setInterval(function(){ if(!document.hidden) checkSheetForNewRows(true); }, 30000);
-      document.addEventListener("visibilitychange", function(){ if(!document.hidden) checkSheetForNewRows(true); });
+      if(!window.__vmVisBound){
+        window.__vmVisBound = true;
+        document.addEventListener("visibilitychange", function(){ if(!document.hidden) checkSheetForNewRows(true); });
+      }
     }
   }
 
@@ -2533,7 +2591,7 @@ function doGet(e) {
     var totalProfit = sold.reduce(function(s,p){ var pr=profitOf(p); return s+(pr||0); },0);
     var totalRevenue = sold.reduce(function(s,p){ return s+(p.sellPrice||0); },0);
     var capitalInStock = stock.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
-    var costBasisSold = sold.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
+    var costBasisSold = sold.reduce(function(s,p){ return s+(p.sellPrice!=null ? (p.buyPrice||0) : 0); },0);
     var margin = costBasisSold>0 ? (totalProfit/costBasisSold*100) : 0;
     var lostValue = lost.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
 
@@ -2624,7 +2682,7 @@ function doGet(e) {
     var srcMap = {};
     all.forEach(function(p){
       if(!p.source) return;
-      var k = p.source.trim();
+      var k = String(p.source).trim();
       if(!srcMap[k]) srcMap[k] = {count:0, sum:0};
       srcMap[k].count++; srcMap[k].sum += (p.buyPrice||0);
     });
@@ -2638,7 +2696,7 @@ function doGet(e) {
     var buyMap = {};
     sold.forEach(function(p){
       if(!p.buyer) return;
-      var k = p.buyer.trim();
+      var k = String(p.buyer).trim();
       if(!buyMap[k]) buyMap[k] = {count:0, sum:0};
       buyMap[k].count++; buyMap[k].sum += (p.sellPrice||0);
     });
@@ -2823,8 +2881,10 @@ function doGet(e) {
         if(!activeSheetSyncUrl()) throw new Error("Asosiy Apps Script havolasi saqlanmagan (Moliya > Google Sheet)");
         json = await fetchSheetExport(activeSheetSyncUrl(), sid);
       }
+      if(!state.financeView || state.financeView.id!==m.id || state.financeView.mode!=="month") return;   // locked / left in the meantime
       state.financeView = {mode:"month", id:m.id, label:m.label, sheetUrl:m.sheetUrl, loading:false, records: json.records||[]};
     }catch(e){
+      if(!state.financeView || state.financeView.id!==m.id || state.financeView.mode!=="month") return;
       state.financeView = {mode:"month", id:m.id, label:m.label, sheetUrl:m.sheetUrl, loading:false, error: e.message};
     }
     renderFinance();
@@ -3069,6 +3129,8 @@ function doGet(e) {
     if(useBrand==="iphone") markActiveSwatch("ip_colorSwatches", document.getElementById("f_ip_color").value);
     else markActiveSwatch("other_colorSwatches", document.getElementById("f_other_color").value);
     toggleSoldBlock();
+    state.rawModel = (p && useBrand==="iphone") ? (p.model||"") : "";
+    state.ipSig = ipSignature();
     document.getElementById("deleteFromEditBtn").hidden = !id;
     document.getElementById("phoneOverlay").classList.add("open");
   }
@@ -3077,8 +3139,13 @@ function doGet(e) {
     state.editingId = null; state.returning = false;
     document.getElementById("returnNote").hidden = true;
   }
+  function ipSignature(){
+    return ["f_ip_model","f_ip_color","f_ip_memory","f_ip_battery","f_ip_region"].map(function(id){ return document.getElementById(id).value; }).join("|");
+  }
   function buildModelString(brand){
     if(brand==="iphone"){
+      /* old/imported model text (e.g. "8 PLUS 64GB") that the pickers cannot represent: keep it exactly unless the user changed a picker */
+      if(state.editingId && state.rawModel && ipSignature()===state.ipSig) return state.rawModel;
       var modelName = document.getElementById("f_ip_model").value;
       var color = document.getElementById("f_ip_color").value.trim();
       var mem = document.getElementById("f_ip_memory").value;
@@ -3128,7 +3195,8 @@ function doGet(e) {
     try{
       if(state.editingId){
         await phonesCol.doc(state.editingId).update(data);
-        syncToSheet("upsert", state.editingId, data);
+        var priorForSync = state.phones.find(function(x){return x.id===state.editingId;}) || {};
+        syncToSheet("upsert", state.editingId, Object.assign({}, priorForSync, data));
         toast("O'zgarishlar saqlandi");
       } else {
         data.seq = Date.now();
@@ -3279,12 +3347,12 @@ function doGet(e) {
     var list = brand==="all" ? state.phones.slice() : state.phones.filter(TYPE_TESTS[brand]);
     list.sort(function(a,b){ return (b.seq||0)-(a.seq||0); });
     var header = ["Model","Brend","IMEI","Holati","Kimdan olindi","Tel(sotuvchi)","Sotib olingan sana","Sotib olingan vaqti","Sotib olingan narx",
-      "Kimga sotildi","Tel(xaridor)","Sotilgan sana","Sotilgan vaqti","Sotilgan narx","Foyda","Izoh"];
+      "Kimga sotildi","Tel(xaridor)","Sotilgan sana","Sotilgan vaqti","Sotilgan narx","Foyda","Izoh","Yangi"];
     var rows = list.map(function(p){
       var pr = profitOf(p);
       return [p.model||"", BRAND_LABEL[p.brand]||"", p.imei||"", statusLabel(p.status), p.source||"", p.sourcePhone||"",
         p.buyDate||"", fmtTime(p.createdAt), p.buyPrice!=null?p.buyPrice:"", p.buyer||"", p.buyerPhone||"",
-        p.sellDate||"", fmtTime(p.soldAt), p.sellPrice!=null?p.sellPrice:"", pr!=null?pr:"", p.note||""];
+        p.sellDate||"", fmtTime(p.soldAt), p.sellPrice!=null?p.sellPrice:"", pr!=null?pr:"", p.note||"", isNewPhone(p)?"Yangi":"Ishlatilgan"];
     });
     return {header:header, rows:rows};
   }
@@ -3475,7 +3543,8 @@ function doGet(e) {
     ["source","Kimdan olindi"], ["sourcePhone","Uning telefoni"],
     ["buyDate","Sotib olingan sana"], ["buyTime","Sotib olingan vaqt"], ["buyPrice","Sotib olingan narx"],
     ["buyer","Kimga sotildi"], ["buyerPhone","Uning telefoni (xaridor)"],
-    ["sellDate","Sotilgan sana"], ["sellTime","Sotilgan vaqt"], ["sellPrice","Sotilgan narx"], ["note","Izoh"]
+    ["sellDate","Sotilgan sana"], ["sellTime","Sotilgan vaqt"], ["sellPrice","Sotilgan narx"], ["note","Izoh"],
+    ["status","Holati"], ["brand","Brend"], ["newFlag","Yangi / Ishlatilgan"]
   ];
 
   function openImportModal(){
@@ -3524,7 +3593,11 @@ function doGet(e) {
     "kimdan olindi":"source", "uning raqami":"sourcePhone", "telefon nomi":"model", "karobka":"imeiBox", "imei":"imei",
     "sotib olingan sana":"buyDate", "sotib olingan vaqti":"buyTime", "sotib olingan vaqt":"buyTime",
     "sotilgan sana":"sellDate", "sotilgan vaqti":"sellTime", "sotilgan vaqt":"sellTime",
-    "sotib olingan narx":"buyPrice", "sotilgan narx":"sellPrice", "kimga sotildi":"buyer", "xaridor raqami":"buyerPhone", "izoh":"note"
+    "sotib olingan narx":"buyPrice", "sotilgan narx":"sellPrice", "kimga sotildi":"buyer", "xaridor raqami":"buyerPhone", "izoh":"note",
+    /* headers written by the platform's own Excel export */
+    "model":"model", "brend":"brand", "holati":"status", "tel(sotuvchi)":"sourcePhone", "tel(xaridor)":"buyerPhone",
+    /* hidden columns of the Google Sheet tabs */
+    "yangi":"newFlag", "brand":"brand"
   };
   function headerMapping(row){
     var map = {}, hits = 0;
@@ -3555,6 +3628,7 @@ function doGet(e) {
         if(/^#[A-Z\/!?0]+/.test(str)) return;            // Excel formula errors (#VALUE! ...)
         s.n++; s.lenSum += str.length;
         if(typeof v === "number"){
+          if(v>=1e12 && v<1e16){ s.imei++; return; }           // IMEI stored as a number
           if(v>15000 && v<80000){ s.date++; return; }
           if(v>=10 && v<=30000 && Math.floor(v)===v){ s.price++; return; }
           if(v>0 && v<1){ s.time++; return; }               // Excel time cell
@@ -3693,6 +3767,18 @@ function doGet(e) {
         else if(field==="buyPrice" || field==="sellPrice") rec[field] = parseFlexNum(raw);
         else if(field==="buyTime" || field==="sellTime") rec[field] = parseFlexTime(raw);
         else if(field==="imeiBox") rec[field] = /^BOR/i.test(String(raw||"").trim());
+        else if(field==="status"){
+          var sv = String(raw||"").trim().toLowerCase();
+          rec._status = ({"sotilmagan":"stock","sotilgan":"sold","band":"lent","yo'qolgan":"lost","stock":"stock","sold":"sold","lent":"lent","lost":"lost"})[sv] || "";
+        }
+        else if(field==="brand"){
+          var bv = String(raw||"").trim().toLowerCase();
+          rec._brand = bv==="iphone" ? "iphone" : (bv==="samsung" ? "samsung" : ((bv==="boshqa"||bv==="other") ? "other" : ""));
+        }
+        else if(field==="newFlag"){
+          var nv = String(raw||"").trim().toLowerCase();
+          if(nv==="yangi") rec._newFlag = true; else if(nv==="ishlatilgan") rec._newFlag = false;
+        }
         else if(field==="note"){ var s=String(raw||"").trim(); if(s) rec.note = rec.note ? rec.note+"; "+s : s; }
         else rec[field] = String(raw==null?"":raw).trim();
       });
@@ -3700,9 +3786,10 @@ function doGet(e) {
       if(rec.buyTime && rec.buyDate){ rec.createdAt = isoFromDateTime(rec.buyDate, rec.buyTime); }
       if(rec.sellTime && rec.sellDate){ rec.soldAt = isoFromDateTime(rec.sellDate, rec.sellTime); }
       delete rec.buyTime; delete rec.sellTime;
-      rec.brand = classifyBrand(rec.model);
-      rec.status = rec.sellPrice!=null ? "sold" : ((rec.buyer||rec.sellDate) ? "lent" : "stock");
-      rec.isNew = /NEW/i.test(rec.model);
+      rec.brand = rec._brand || classifyBrand(rec.model);
+      rec.status = rec._status || (rec.sellPrice!=null ? "sold" : ((rec.buyer||rec.sellDate) ? "lent" : "stock"));
+      rec.isNew = rec._newFlag!==undefined ? rec._newFlag : isNewText(rec.model);
+      delete rec._brand; delete rec._status; delete rec._newFlag;
       records.push(rec);
     }
     return records;
@@ -3791,7 +3878,10 @@ function doGet(e) {
     try{
       var wb = XLSX.read(new Uint8Array(buffer), {type:"array"});
       var out = [];
-      wb.SheetNames.forEach(function(sn){
+      var lowerNames = wb.SheetNames.map(function(n){ return String(n).trim().toLowerCase(); });
+      var hasBrandTabs = lowerNames.some(function(n){ return ["iphone","samsung","yangi","boshqa"].indexOf(n)!==-1; });
+      wb.SheetNames.forEach(function(sn, si){
+        if(hasBrandTabs && (lowerNames[si]==="barcha" || lowerNames[si]==="barchasi")) return;   // that tab only repeats the others
         var ws = wb.Sheets[sn];
         var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:"", raw:true});
         var hasData = rows.some(function(r, i){ return i>0 && r.some(function(v){ return v!==null && v!==undefined && String(v).trim()!==""; }); });
@@ -3942,7 +4032,7 @@ function doGet(e) {
     if(!rec.model && !rec.imei) return null;
     rec.brand = (o.brand==="iphone"||o.brand==="samsung"||o.brand==="other") ? o.brand : classifyBrand(rec.model);
     rec.status = ["stock","sold","lent","lost"].indexOf(o.status)!==-1 ? o.status : (rec.sellPrice!=null ? "sold" : "stock");
-    rec.isNew = (o.isNew===true) || /NEW/i.test(rec.model);
+    rec.isNew = (o.isNew===true) || isNewText(rec.model);
     return rec;
   }
   document.getElementById("aiSortBtn").addEventListener("click", async function(){

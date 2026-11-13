@@ -213,6 +213,9 @@ function formatSheet_(sh, color) {
     sh.getRange(2, 8, dataRows, 1).setNumberFormat(DATE_FORMAT);  // bought date
     sh.getRange(2, 10, dataRows, 1).setNumberFormat(DATE_FORMAT); // sold date
     sh.getRange(2, 12, dataRows, 2).setNumberFormat('"$"#,##0');  // bought/sold rate
+    sh.getRange(2, 4, dataRows, 1).setNumberFormat('@');          // phone number (text: keeps +998 / leading zeros)
+    sh.getRange(2, 7, dataRows, 1).setNumberFormat('@');          // IMEI (text: never 3.5E+14)
+    sh.getRange(2, 15, dataRows, 1).setNumberFormat('@');         // buyer phone
     sh.getRange(2, 9, dataRows, 1).setNumberFormat('@');          // bought time  (plain text, so "14:35" stays "14:35")
     sh.getRange(2, 11, dataRows, 1).setNumberFormat('@');         // sold time
   }, 'number formats');
@@ -228,15 +231,19 @@ function rowFor_(rec) {
     rec.buyDate || '', rec.buyTime || '', rec.sellDate || '', rec.sellTime || '',
     rec.buyPrice != null ? rec.buyPrice : '', rec.sellPrice != null ? rec.sellPrice : '',
     rec.buyer || '', rec.buyerPhone || '',
-    rec.isNew ? 'Yangi' : '',
+    rec.isNew ? 'Yangi' : 'Ishlatilgan',
     rec.brand || ''
   ];
 }
 function blankRow_() { return HEADERS.map(function () { return ''; }); }
 function dividerRow_(label) { var r = blankRow_(); r[2] = label; return r; }
 
+function sheetTz_() {
+  try { return SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(); } catch (e) { return Session.getScriptTimeZone(); }
+}
 function dateBack_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  // same time zone as timeBack_ (the spreadsheet's), otherwise dates can shift a day when the script zone differs
+  if (v instanceof Date) return Utilities.formatDate(v, sheetTz_(), 'yyyy-MM-dd');
   return v || '';
 }
 function timeBack_(v) {
@@ -261,7 +268,8 @@ function readRows_(sh) {
   var values = sh.getRange(2, 1, lastRow - 1, width).getValues();
   return values.map(function (row) { var r = row.slice(); while (r.length < HEADERS.length) r.push(''); return r; });
 }
-function isNewModel_(model) { return /NEW/i.test(model || ''); }
+function isNewModel_(model) { return /NEW/i.test(model || '') && !/RENEW/i.test(model || ''); }
+function sv_(v) { return v == null ? '' : String(v); }   // keep IMEI / phone cells as text even if Sheets turned them into numbers
 function readSheetRecords_(sh) {
   var out = [];
   readRows_(sh).forEach(function (row) {
@@ -269,13 +277,13 @@ function readSheetRecords_(sh) {
     if (!id) return;
     out.push({
       id: id, status: row[1] || 'stock',
-      source: row[2] || '', sourcePhone: row[3] || '', model: row[4] || '',
-      imeiBox: row[5] === 'Bor', imei: row[6] || '',
+      source: sv_(row[2]), sourcePhone: sv_(row[3]), model: sv_(row[4]),
+      imeiBox: row[5] === 'Bor', imei: sv_(row[6]),
       buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
       sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
       buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
-      buyer: row[13] || '', buyerPhone: row[14] || '',
-      isNew: row[15] === 'Yangi' || isNewModel_(row[4]),
+      buyer: sv_(row[13]), buyerPhone: sv_(row[14]),
+      isNew: row[15] === 'Yangi' ? true : (row[15] === 'Ishlatilgan' ? false : isNewModel_(row[4])),
       brandCell: row[16] || ''
     });
   });
@@ -315,18 +323,32 @@ function buildGroupedRows_(items, partyFns) {
 
 /** Rows someone typed straight into a tab (no ID yet). The platform adopts them on its next check;
  *  until then every rewrite MUST keep them, otherwise a normal platform sync would silently erase them. */
+var DIVIDER_RE = /^(BAND|SOTILGAN) \(\d+ ta\)$/;
 function readPendingRows_(sh) {
   var out = [];
   readRows_(sh).forEach(function (row) {
     if (row[0]) return;                               // has an ID: normal record
-    if (!row[4] && !row[6]) return;                   // blank or divider row (no model, no IMEI)
-    out.push(row);
+    var hasData = false;
+    for (var i = 2; i <= 14; i++) { if (row[i] !== '' && row[i] != null) { hasData = true; break; } }
+    if (!hasData) return;                             // blank row
+    if (!row[4] && !row[6] && DIVIDER_RE.test(String(row[2]).trim())) return;   // our own BAND / SOTILGAN divider
+    out.push(row);                                    // anything else typed in (even half a row) is kept
   });
   return out;
 }
 function norm_(v) { return String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ' '); }
+/** Same reading of a price as the platform (parseFlexNum): "$1,200" / "1 200" / "1,5" / 1200. */
+function priceNorm_(v) {
+  if (v === '' || v == null) return '';
+  if (typeof v === 'number') return v;
+  var s = String(v).replace(/\$/g, '').replace(/\s+/g, '');
+  if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, ''); else s = s.replace(/,/g, '.');
+  if (s === '') return '';
+  var n = Number(s);
+  return isNaN(n) ? '' : n;
+}
 function softKey_(model, imei, buyPrice, source) {
-  return [norm_(model), String(imei || '').replace(/\D/g, ''), buyPrice === '' || buyPrice == null ? '' : Number(buyPrice), norm_(source)].join('|');
+  return [norm_(model), String(imei || '').replace(/\D/g, ''), priceNorm_(buyPrice), norm_(source)].join('|');
 }
 function pendingKey_(row) { return softKey_(row[4], row[6], row[11], row[2]); }
 function recKey_(rec) { return softKey_(rec.model, rec.imei, rec.buyPrice, rec.source); }
@@ -339,11 +361,17 @@ function recFrom_(id, d) {
     buyDate: d.buyDate || '', buyTime: d.buyTime || '', sellDate: d.sellDate || '', sellTime: d.sellTime || '',
     buyPrice: d.buyPrice != null ? d.buyPrice : null, sellPrice: d.sellPrice != null ? d.sellPrice : null,
     buyer: d.buyer || '', buyerPhone: d.buyerPhone || '',
-    isNew: !!d.isNew || isNewModel_(d.model)
+    isNew: (d.isNew === undefined || d.isNew === null) ? isNewModel_(d.model) : !!d.isNew
   };
 }
 
 function writeBody_(sh, rows) {
+  try {
+    var need = rows.length + 1;
+    if (typeof sh.getMaxRows === 'function' && typeof sh.insertRowsAfter === 'function' && need > sh.getMaxRows()) {
+      sh.insertRowsAfter(sh.getMaxRows(), need - sh.getMaxRows() + 100);   // a new sheet only has 1000 rows
+    }
+  } catch (e) { Logger.log('grow sheet failed: ' + e); }
   var lastRow = sh.getLastRow();
   if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, HEADERS.length).clearContent();
   if (rows.length) sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
@@ -526,13 +554,13 @@ function exportAllData_(ss) {
       if (!id && !model && !row[6]) return; // blank/divider row
       var rec = {
         id: id || null, status: row[1] || 'stock', brand: isBrandTab ? def.key : '',
-        source: row[2] || '', sourcePhone: row[3] || '', model: model || '',
-        imeiBox: row[5] === 'Bor', imei: row[6] || '',
+        source: sv_(row[2]), sourcePhone: sv_(row[3]), model: sv_(model),
+        imeiBox: row[5] === 'Bor', imei: sv_(row[6]),
         buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
         sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
         buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
-        buyer: row[13] || '', buyerPhone: row[14] || '',
-        isNew: def.key === 'new' || row[15] === 'Yangi' || isNewModel_(model)
+        buyer: sv_(row[13]), buyerPhone: sv_(row[14]),
+        isNew: def.key === 'new' || row[15] === 'Yangi' || (row[15] !== 'Ishlatilgan' && isNewModel_(model))
       };
       if (id) {
         if (isBrandTab || def.key === 'new') {              // Barcha only repeats the others
