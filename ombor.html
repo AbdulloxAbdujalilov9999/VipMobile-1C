@@ -1565,10 +1565,26 @@ function jsonOut_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 
+/** Creates any tab that is missing (e.g. "O'chirilgan" right after this script is updated), so it appears without waiting for the first write. */
+function ensureTabs_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  allTabs_().concat([TRASH_TAB]).forEach(function (def) {
+    if (!ss.getSheetByName(def.name)) getOrCreateSheet_(def.name, def.color);
+  });
+  if (tabsCreated_) { tabsCreated_ = false; orderTabs_(); }
+}
 function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
   if (action === 'export' && e.parameter.sheetId) return exportById_(e.parameter.sheetId);
-  if (action === 'export') return exportAllData_();
+  if (action === 'export') {
+    try {
+      var lock = LockService.getScriptLock();
+      if (lock.tryLock(3000)) {
+        try { ensureTabs_(); } finally { lock.releaseLock(); }
+      }
+    } catch (tabErr) { Logger.log('ensureTabs_ failed: ' + tabErr); }
+    return exportAllData_();
+  }
   return ContentService.createTextOutput('VipMobile sync endpoint is running.');
 }
 `;
