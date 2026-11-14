@@ -134,6 +134,8 @@
   .sort-bar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 12px; }
   .sort-bar .sort-label{ font-size:12px; color:var(--ink-dim); font-weight:700; margin-right:2px; }
   .sort-bar .chip.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  input.masked{ -webkit-text-security:disc; }
+  table.trash-table{ min-width:860px; }
   .return-note{ background:var(--gold-soft); color:var(--gold); border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.5; margin-bottom:12px; }
   .brand-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
   @media (max-width:1100px){ .brand-row{ grid-template-columns:repeat(2,1fr); } }
@@ -375,8 +377,8 @@
     <h2>VipMobile</h2>
     <p>Davom etish uchun hisobingizga kiring.</p>
     <form id="loginForm">
-      <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" required>
-      <input type="password" id="loginPassword" placeholder="Parol" autocomplete="current-password" required>
+      <input type="email" id="loginEmail" placeholder="Email" autocomplete="off" required>
+      <input type="password" id="loginPassword" placeholder="Parol" autocomplete="new-password" required>
       <div id="loginError" style="color:var(--danger); font-size:12.5px; margin:-4px 0 12px; display:none;"></div>
       <button type="submit" class="btn primary lg" style="width:100%" id="loginSubmitBtn">Kirish</button>
     </form>
@@ -421,6 +423,7 @@
       <button class="tab-btn" data-tab="new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.5 6.5L21 11l-6.5 2.5L12 20l-2.5-6.5L3 11l6.5-2.5L12 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Yangi Telefonlar</span> <span class="tab-count" id="count-new">0</span></button>
       <button class="tab-btn" data-tab="other"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 8l9-5 9 5-9 5-9-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 8v9l9 5 9-5V8M12 13v9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Boshqa</span> <span class="tab-count" id="count-other">0</span></button>
       <div class="nav-divider"></div>
+      <button class="tab-btn" data-tab="trash"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span>Axlat qutisi</span> <span class="tab-count" id="count-trash">0</span></button>
       <button class="tab-btn" data-tab="finance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2"/></svg> <span>Moliya</span></button>
     </nav>
     <button class="btn sm" id="sidebarSyncBtn" style="width:100%; margin:0 0 10px; justify-content:center; overflow:hidden;">
@@ -470,13 +473,33 @@
       <section id="tab-all"><div id="shell-all"></div></section>
       <section id="tab-new"><div id="shell-new"></div></section>
 
+      <section id="tab-trash">
+        <div class="page-intro">
+          <h1>Axlat qutisi</h1>
+          <p>O'chirilgan telefonlar <b>butunlay yo'qolmaydi</b> — shu yerda saqlanadi. "Qaytarish"ni bossangiz telefon hamma ma'lumoti bilan o'z joyiga qaytadi.</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn lg danger" id="emptyTrashBtn">Axlat qutisini bo'shatish</button>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table class="trash-table" id="table-trash">
+              <thead><tr>
+                <th class="rownum">#</th><th>Model</th><th>IMEI</th><th>Narx</th><th>Holati</th><th>O'chirilgan</th><th></th>
+              </tr></thead>
+              <tbody id="tbody-trash"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section id="tab-finance">
         <div id="financeLock" class="lock-wrap">
           <div class="lock-card">
             <div class="icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="var(--gold)" stroke-width="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="var(--gold)" stroke-width="2"/></svg></div>
             <h2>Moliyaviy hisobot</h2>
             <p>Foyda, savdo summasi va eksport/import shu yerda. Davom etish uchun parolni kiriting.</p>
-            <input type="password" id="financePassword" placeholder="Parol">
+            <input type="password" id="financePassword" placeholder="Parol" autocomplete="new-password">
             <button class="btn primary lg" style="width:100%" id="financeUnlockBtn">Kirish</button>
           </div>
         </div>
@@ -577,7 +600,7 @@
                   <button class="btn lg" id="aiKeyClearBtn">O'chirish</button>
                 </div>
                 <p style="font-size:12px; color:var(--ink-dim); margin-top:12px; line-height:1.6;">
-                  Kalit faqat shu qurilmadagi brauzeringizda saqlanadi (kodga yoki GitHub'ga yozilmaydi). Excel yuklashda "AI bilan tartiblash" tugmasi fayldagi qatorlarni Claude'ga yuborib, ma'lumotni to'g'ri ustunlarga ajratib beradi. Har bir qurilmada bir marta kiritiladi.
+                  Kalit hech qayerga yozib qo'yilmaydi: faqat shu oyna ochiq turguncha xotirada turadi (oynani yopsangiz qayta kiritasiz). Kodga yoki GitHub'ga ham yozilmaydi. Excel yuklashda "AI bilan tartiblash" tugmasi fayldagi qatorlarni Claude'ga yuborib, ma'lumotni to'g'ri ustunlarga ajratib beradi. Har bir qurilmada bir marta kiritiladi.
                 </p>
               </div>
             </div>
@@ -1487,6 +1510,7 @@ function doGet(e) {
 
   var state = {
     phones: [],
+    trash: [],
     notes: "",
     sec: {
       iphone: {search:"", status:"all", gen:"all"},
@@ -2156,7 +2180,7 @@ function doGet(e) {
     listenerUnsubs.forEach(function(u){ try{ u(); }catch(e){} });
     listenerUnsubs = [];
     if(state.sheetCheckInterval){ clearInterval(state.sheetCheckInterval); state.sheetCheckInterval = null; }
-    state.phones = []; state.financeMonths = []; state.sheetSyncUrl = ""; state.sheetLinkUrl = "";
+    state.phones = []; state.trash = []; state.financeMonths = []; state.sheetSyncUrl = ""; state.sheetLinkUrl = "";
     state.financeUnlocked = false; state.financeView = {mode:"live"};
     phonesCol = notesDoc = sheetSyncDoc = monthsDoc = null;
     var fl = document.getElementById("financeLock"), fc = document.getElementById("financeContent");
@@ -2174,12 +2198,15 @@ function doGet(e) {
     monthsDoc = db.collection("meta").doc("financeMonths");
 
     listenerUnsubs.push(phonesCol.orderBy("seq","desc").limit(3000).onSnapshot(function(snap){
-      state.phones = snap.docs.map(function(d){
+      var live = [], binned = [];
+      snap.docs.forEach(function(d){
         var v = Object.assign({}, d.data()||{});
         v.id = d.id;
         if(!v.brand) v.brand = classifyBrand(v.model);
-        return v;
+        (v.deleted===true ? binned : live).push(v);        // deleted phones stay in the database, in the trash
       });
+      binned.sort(function(a,b){ return String(b.deletedAt||"").localeCompare(String(a.deletedAt||"")); });
+      state.phones = live; state.trash = binned;
       renderAll();
     }, function(err){
       setStatus("off","O'qish xatosi");
@@ -2896,7 +2923,49 @@ function doGet(e) {
     renderMonthsList();
   }
 
+  function renderTrash(){
+    var tb = document.getElementById("tbody-trash");
+    if(!tb) return;
+    var list = state.trash || [];
+    var c = document.getElementById("count-trash"); if(c) c.textContent = list.length;
+    var eb = document.getElementById("emptyTrashBtn"); if(eb) eb.disabled = !list.length;
+    if(!list.length){ tb.innerHTML = '<tr><td colspan="7"><div class="empty-state">Axlat qutisi bo\'sh</div></td></tr>'; return; }
+    tb.innerHTML = list.map(function(p,i){
+      var when = p.deletedAt ? fmtDate(String(p.deletedAt).slice(0,10))+(fmtTime(p.deletedAt)?' · '+fmtTime(p.deletedAt):'') : "—";
+      return '<tr>'+
+        '<td class="rownum">'+(i+1)+'</td>'+
+        '<td><div class="cell-model"><span class="brandtag '+esc(p.brand||"other")+'">'+esc(BRAND_LABEL[p.brand]||"")+'</span> '+esc(p.model||"Nomsiz")+'</div><div class="cell-sub">'+esc(p.source||"")+'</div></td>'+
+        '<td class="mono">'+esc(p.imei||"—")+'</td>'+
+        '<td class="mono price-tag">'+(p.buyPrice!=null?fmtMoney(p.buyPrice):"—")+'</td>'+
+        '<td><span class="badge '+esc(["stock","sold","lent","lost"].indexOf(p.status)!==-1?p.status:"stock")+'">'+esc(statusLabel(p.status))+'</span></td>'+
+        '<td>'+esc(when)+(p.deletedReason?'<div class="cell-sub">'+esc(p.deletedReason)+'</div>':'')+'</td>'+
+        '<td><div class="row-actions">'+
+          '<button class="btn sm ghost" data-restore="'+esc(p.id)+'" style="color:var(--success)">Qaytarish</button>'+
+          '<button class="btn sm ghost" data-purge="'+esc(p.id)+'" style="color:var(--danger)">Butunlay o\'chirish</button>'+
+        '</div></td></tr>';
+    }).join("");
+    tb.querySelectorAll("[data-restore]").forEach(function(b){ b.onclick = function(){ restoreFromTrash(b.getAttribute("data-restore")); }; });
+    tb.querySelectorAll("[data-purge]").forEach(function(b){
+      b.onclick = function(){
+        var id = b.getAttribute("data-purge"), p = state.trash.find(function(x){return x.id===id;});
+        state.deleteId = id; confirmAction = "purge-phone";
+        document.getElementById("confirmTitle").textContent = "Butunlay o'chirish";
+        document.getElementById("confirmText").textContent = "\""+((p&&p.model)||"Ushbu yozuv")+"\" butunlay o'chiriladi va uni qaytarib bo'lmaydi.";
+        setConfirmButton("Butunlay o'chirish", true);
+        document.getElementById("confirmOverlay").classList.add("open");
+      };
+    });
+  }
+  document.getElementById("emptyTrashBtn").addEventListener("click", function(){
+    if(!state.trash.length) return;
+    confirmAction = "empty-trash";
+    document.getElementById("confirmTitle").textContent = "Axlat qutisini bo'shatish";
+    document.getElementById("confirmText").textContent = "Axlat qutisidagi "+state.trash.length+" ta telefon butunlay o'chiriladi. Buni qaytarib bo'lmaydi.";
+    setConfirmButton("Hammasini o'chirish", true);
+    document.getElementById("confirmOverlay").classList.add("open");
+  });
   function renderAll(){
+    renderTrash();
     renderDashboard();
     BRANDS.forEach(renderSection);
     VIRTUAL_BRANDS.forEach(renderSection);
@@ -2906,8 +2975,16 @@ function doGet(e) {
   /* ====================== tabs ====================== */
   function switchTab(tab){
     document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===tab); });
-    ["dashboard","iphone","samsung","other","all","new","finance"].forEach(function(t){
+    ["dashboard","iphone","samsung","other","all","new","trash","finance"].forEach(function(t){
       document.getElementById("tab-"+t).classList.toggle("active", t===tab);
+    });
+    /* search boxes never keep what was typed: moving to another page empties them */
+    BRANDS.concat(VIRTUAL_BRANDS).forEach(function(b){
+      if(state.sec[b] && state.sec[b].search){
+        state.sec[b].search = "";
+        var box = document.getElementById("search-"+b); if(box) box.value = "";
+        renderSection(b);
+      }
     });
     if(tab!=="finance" && state.financeUnlocked){
       state.financeUnlocked = false;
@@ -3224,8 +3301,8 @@ function doGet(e) {
     confirmAction = "delete-phone";
     var p = state.phones.find(function(x){return x.id===id;});
     document.getElementById("confirmTitle").textContent = "O'chirishni tasdiqlang";
-    document.getElementById("confirmText").textContent = "\""+((p&&p.model)||"Ushbu yozuv")+"\" o'chiriladi. Bu amalni qaytarib bo'lmaydi.";
-    setConfirmButton("O'chirish", true);
+    document.getElementById("confirmText").textContent = "\""+((p&&p.model)||"Ushbu yozuv")+"\" axlat qutisiga tushadi. Keyin u yerdan qaytarib olishingiz mumkin.";
+    setConfirmButton("Axlat qutisiga", true);
     document.getElementById("confirmOverlay").classList.add("open");
   }
   function closeConfirm(){
@@ -3250,13 +3327,49 @@ function doGet(e) {
     setConfirmButton("Ha, Band qilish", false);
     document.getElementById("confirmOverlay").classList.add("open");
   }
+  /* Soft delete: the phone stays in the database flagged "deleted" (nothing is lost, and it needs no new database rules). */
+  async function moveToTrash(ids, reason){
+    var now = new Date().toISOString();
+    for(var i=0;i<ids.length;i+=400){
+      var batch = db.batch();
+      ids.slice(i,i+400).forEach(function(id){
+        batch.update(phonesCol.doc(id), {deleted:true, deletedAt:now, deletedReason:reason, updatedAt:now});
+      });
+      await batch.commit();
+    }
+  }
+  async function restoreFromTrash(id){
+    var p = state.trash.find(function(x){return x.id===id;});
+    if(!p || !phonesCol) return;
+    var now = new Date().toISOString();
+    try{
+      await phonesCol.doc(id).update({deleted:false, deletedAt:null, deletedReason:null, updatedAt:now});
+      var clean = Object.assign({}, p, {deleted:false, updatedAt:now});
+      syncToSheet("upsert", id, clean);
+      toast("Qaytarildi: "+(p.model||"telefon"));
+    }catch(e){ toast("Qaytarishda xatolik: "+(e.code||e.message), true); }
+  }
   async function doConfirm(){
-    if(confirmAction==="delete-phone"){
+    if(confirmAction==="purge-phone"){
+      if(!state.deleteId || !phonesCol) return;
+      try{ await phonesCol.doc(state.deleteId).delete(); toast("Butunlay o'chirildi"); }
+      catch(e){ toast("O'chirishda xatolik: "+(e.code||e.message), true); }
+      closeConfirm();
+    } else if(confirmAction==="empty-trash"){
+      var ids = state.trash.map(function(p){return p.id;});
+      try{
+        for(var i=0;i<ids.length;i+=400){
+          var b = db.batch(); ids.slice(i,i+400).forEach(function(id){ b.delete(phonesCol.doc(id)); }); await b.commit();
+        }
+        toast("Axlat qutisi bo'shatildi ("+ids.length+" ta)");
+      }catch(e){ toast("Xatolik: "+(e.code||e.message), true); }
+      closeConfirm();
+    } else if(confirmAction==="delete-phone"){
       if(!state.deleteId || !phonesCol) return;
       try{
-        await phonesCol.doc(state.deleteId).delete();
+        await moveToTrash([state.deleteId], "O'chirildi");
         syncToSheet("delete", state.deleteId);
-        toast("O'chirildi");
+        toast("Axlat qutisiga tushdi — u yerdan qaytarish mumkin");
       }catch(e){ toast("O'chirishda xatolik", true); }
       closeConfirm();
     } else if(confirmAction==="new-month"){
@@ -3469,12 +3582,8 @@ function doGet(e) {
     var toDelete = state.phones.filter(function(p){ return p.status==="sold"; });
     if(!toDelete.length){ toast("Sotilgan yozuv topilmadi, arxiv saqlandi"); return; }
     try{
-      for(var i=0;i<toDelete.length;i+=400){
-        var batch = db.batch();
-        toDelete.slice(i,i+400).forEach(function(p){ batch.delete(phonesCol.doc(p.id)); });
-        await batch.commit();
-      }
-      toast(toDelete.length+" ta sotilgan yozuv arxivlandi va o'chirildi");
+      await moveToTrash(toDelete.map(function(p){return p.id;}), "Yangi oy");
+      toast(toDelete.length+" ta sotilgan yozuv arxivlandi (axlat qutisida ham saqlanadi)");
     }catch(e){
       toast("O'chirishda xatolik: "+(e.code||e.message), true);
     }
@@ -3509,12 +3618,8 @@ function doGet(e) {
     if(!all.length){ toast("O'chiriladigan yozuv yo'q"); closeWipeModal(); btn.disabled=false; setBtnLabel(btn,"Hammasini o'chirish"); return; }
     setBtnLabel(btn, "O'chirilmoqda…");
     try{
-      for(var i=0;i<all.length;i+=400){
-        var batch = db.batch();
-        all.slice(i,i+400).forEach(function(p){ batch.delete(phonesCol.doc(p.id)); });
-        await batch.commit();
-      }
-      toast(all.length+" ta yozuv o'chirildi. Endi yangi fayllarni yuklashingiz mumkin.");
+      await moveToTrash(all.map(function(p){return p.id;}), "To'liq tozalash");
+      toast(all.length+" ta yozuv tozalandi (axlat qutisida saqlanadi). Endi yangi fayllarni yuklashingiz mumkin.");
       closeWipeModal();
     }catch(e){
       toast("O'chirishda xatolik: "+(e.code||e.message), true);
@@ -3936,7 +4041,8 @@ function doGet(e) {
   /* ====================== AI: sort messy Excel rows with Claude ====================== */
   var AI_MODEL = "claude-sonnet-5";
   var AI_KEY_STORE = "vms_ai_key";
-  function aiGetKey(){ try{ return localStorage.getItem(AI_KEY_STORE) || ""; }catch(e){ return ""; } }
+  try{ localStorage.removeItem(AI_KEY_STORE); }catch(e){}              // an older version stored the key on disk: remove it
+  function aiGetKey(){ try{ return sessionStorage.getItem(AI_KEY_STORE) || ""; }catch(e){ return ""; } }
   function aiRenderKeyStatus(){
     var el = document.getElementById("aiKeyStatus"); if(!el) return;
     el.textContent = aiGetKey() ? "ulangan" : "kalit yo'q";
@@ -3944,12 +4050,12 @@ function doGet(e) {
   document.getElementById("aiKeySaveBtn").addEventListener("click", function(){
     var v = document.getElementById("aiKeyInput").value.trim();
     if(!/^sk-ant-/.test(v)){ toast("Kalit sk-ant- bilan boshlanishi kerak", true); return; }
-    try{ localStorage.setItem(AI_KEY_STORE, v); }catch(e){ toast("Brauzer saqlashga ruxsat bermadi", true); return; }
+    try{ sessionStorage.setItem(AI_KEY_STORE, v); }catch(e){ toast("Brauzer saqlashga ruxsat bermadi", true); return; }
     document.getElementById("aiKeyInput").value = "";
-    aiRenderKeyStatus(); toast("AI kaliti shu qurilmada saqlandi");
+    aiRenderKeyStatus(); toast("AI kaliti shu oyna ochiq turguncha ishlaydi (hech qayerga saqlanmaydi)");
   });
   document.getElementById("aiKeyClearBtn").addEventListener("click", function(){
-    try{ localStorage.removeItem(AI_KEY_STORE); }catch(e){}
+    try{ sessionStorage.removeItem(AI_KEY_STORE); }catch(e){}
     document.getElementById("aiKeyInput").value = "";
     aiRenderKeyStatus(); toast("AI kaliti o'chirildi");
   });
@@ -4201,6 +4307,28 @@ function doGet(e) {
     if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); closeWipeModal(); closeMonthModal(); document.getElementById("soldListOverlay").classList.remove("open"); }
   });
 
+  /* ====================== privacy: no saved passwords, no remembered search/typing history ====================== */
+  function hardenInputs(){
+    var canMask = !!(window.CSS && CSS.supports && CSS.supports("-webkit-text-security","disc"));
+    document.querySelectorAll("form").forEach(function(f){ f.setAttribute("autocomplete","off"); });
+    document.querySelectorAll("input, textarea").forEach(function(el){
+      if(["file","checkbox","radio","button","submit"].indexOf(el.type)!==-1) return;
+      el.setAttribute("autocomplete","off");
+      el.setAttribute("autocorrect","off");
+      el.setAttribute("spellcheck","false");
+      el.setAttribute("data-lpignore","true");           // LastPass
+      el.setAttribute("data-1p-ignore","true");          // 1Password
+      el.setAttribute("data-form-type","other");         // Dashlane
+      el.name = "f"+Math.random().toString(36).slice(2,10);   // a fresh field name every load: nothing to match old autofill/history against
+    });
+    /* password boxes: shown as dots but NOT real password fields, so the browser never offers to save or fill them */
+    ["loginPassword","financePassword","aiKeyInput"].forEach(function(id){
+      var el = document.getElementById(id); if(!el) return;
+      el.setAttribute("autocomplete","new-password");
+      if(canMask){ el.type = "text"; el.classList.add("masked"); } else { el.type = "password"; }
+    });
+  }
+
   /* ====================== boot ====================== */
   BRANDS.forEach(function(b){
     document.getElementById("shell-"+b).innerHTML = sectionShellHTML(b);
@@ -4211,6 +4339,7 @@ function doGet(e) {
   BRANDS.forEach(bindSection);
   VIRTUAL_BRANDS.forEach(bindSection);
   populateIphoneModels(null);
+  hardenInputs();
 
   initFirebase();
   renderAll();
