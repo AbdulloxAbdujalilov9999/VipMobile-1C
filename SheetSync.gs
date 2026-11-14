@@ -1,11 +1,12 @@
 /**
  * VipMobile -> Google Sheet sync endpoint.
  *
- * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa
+ * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa | O'chirilgan
  *   Barcha  - every phone (grouped iPhone, then Samsung, then Boshqa)
  *   iPhone / Samsung / Boshqa - one per brand, USED PHONES ONLY
  *   Yangi   - every phone marked NEW (any brand) - new phones are NOT repeated in the brand tabs
  * So a phone is in exactly one of iPhone / Samsung / Yangi / Boshqa, and additionally in Barcha.
+ *   O'chirilgan - every phone deleted on the platform (the platform's trash), with when and why. Restoring moves it back.
  *
  * Inside a tab, phones are grouped by exact model ("17 Pro Max", "S24 Ultra", ...),
  * newest-first, with a blank row between groups. Rows are in three sections
@@ -32,7 +33,7 @@ var SHEET_DEFS = [
 var ALL_TAB = { key: 'all', name: 'Barcha', color: '#2F6B4F' };
 var NEW_TAB = { key: 'new', name: 'Yangi',  color: '#7A3E8E' };
 var OLD_ALL_TAB_NAMES = ['Band', 'Telefonlar']; // earlier name of the combined tab; renamed in place so nothing is lost
-var TAB_ORDER = ['Barcha', 'iPhone', 'Samsung', 'Yangi', 'Boshqa'];
+var TAB_ORDER = ['Barcha', 'iPhone', 'Samsung', 'Yangi', 'Boshqa', "O'chirilgan"];
 function allTabs_() { return [ALL_TAB, SHEET_DEFS[0], SHEET_DEFS[1], NEW_TAB, SHEET_DEFS[2]]; }
 var tabsCreated_ = false;
 
@@ -45,6 +46,12 @@ var HEADERS = [
   'Kimga sotildi', 'Xaridor raqami', 'Yangi', 'Brand'
 ];
 var DATE_FORMAT = 'dd/mm/yy';
+// "O'chirilgan" = the platform's trash: every deleted phone is kept here (same columns + when/why it was deleted).
+var TRASH_TAB = { key: 'trash', name: "O'chirilgan", color: '#8A3B3B' };
+var TRASH_HEADERS = HEADERS.concat(["O'chirilgan vaqti", 'Sababi']);
+function headersFor_(sh) {
+  try { return sh.getName() === TRASH_TAB.name ? TRASH_HEADERS : HEADERS; } catch (e) { return HEADERS; }
+}
 
 /* ====================== iPhone party/generation grouping (ported from the app) ====================== */
 var IPHONE_PARTY_PATTERNS = (function () {
@@ -167,7 +174,8 @@ function getOrCreateSheet_(name, color) {
 /** Older sheets only have 15 columns / no "Yangi" header: bring them up to date once. */
 function ensureHeader_(sh, color) {
   var ok = false;
-  try { ok = sh.getMaxColumns() >= HEADERS.length && sh.getRange(1, HEADERS.length).getValue() === 'Brand'; } catch (e) { ok = false; }
+  var H = headersFor_(sh);
+  try { ok = sh.getMaxColumns() >= H.length && sh.getRange(1, H.length).getValue() === H[H.length - 1]; } catch (e) { ok = false; }
   if (!ok) { try { formatSheet_(sh, color); } catch (e) { Logger.log('ensureHeader ' + e); } }
 }
 function orderTabs_() {
@@ -188,11 +196,12 @@ function formatSheet_(sh, color) {
     try { fn(); } catch (e) { Logger.log('formatSheet_ step failed (' + label + '): ' + e); }
   }
 
+  var H = headersFor_(sh);
   safely_(function () {
-    if (sh.getMaxColumns() < HEADERS.length) sh.insertColumnsAfter(sh.getMaxColumns(), HEADERS.length - sh.getMaxColumns());
+    if (sh.getMaxColumns() < H.length) sh.insertColumnsAfter(sh.getMaxColumns(), H.length - sh.getMaxColumns());
   }, 'add columns');
-  var headerRange = sh.getRange(1, 1, 1, HEADERS.length);
-  headerRange.setValues([HEADERS]); // must succeed - this IS the header row
+  var headerRange = sh.getRange(1, 1, 1, H.length);
+  headerRange.setValues([H]); // must succeed - this IS the header row
 
   safely_(function () {
     headerRange.setFontWeight('bold').setBackground(color).setFontColor('#ffffff')
@@ -202,7 +211,7 @@ function formatSheet_(sh, color) {
   safely_(function () { sh.setFrozenRows(1); }, 'freeze header');
 
   safely_(function () {
-    var widths = [40, 60, 150, 110, 260, 70, 170, 100, 70, 100, 70, 100, 100, 170, 120, 50, 60];
+    var widths = [40, 60, 150, 110, 260, 70, 170, 100, 70, 100, 70, 100, 100, 170, 120, 50, 60, 150, 170];
     for (var i = 0; i < widths.length; i++) sh.setColumnWidth(i + 1, widths[i]);
   }, 'column widths');
   safely_(function () { sh.hideColumns(1, 2); }, 'hide id/status columns');
@@ -260,32 +269,35 @@ function byBuyDateDesc_(a, b) {
 
 /** Reads back every real data row (skips blank/divider rows) as record objects. */
 /** Reads every data row as arrays exactly HEADERS.length wide (older sheets may have fewer columns). */
-function readRows_(sh) {
+function readRows_(sh, wantWidth) {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
-  var width = HEADERS.length;
-  try { width = Math.min(HEADERS.length, sh.getMaxColumns()); } catch (e) {}
+  var full = wantWidth || HEADERS.length;
+  var width = full;
+  try { width = Math.min(full, sh.getMaxColumns()); } catch (e) {}
   var values = sh.getRange(2, 1, lastRow - 1, width).getValues();
-  return values.map(function (row) { var r = row.slice(); while (r.length < HEADERS.length) r.push(''); return r; });
+  return values.map(function (row) { var r = row.slice(); while (r.length < full) r.push(''); return r; });
 }
 function isNewModel_(model) { return /NEW/i.test(model || '') && !/RENEW/i.test(model || ''); }
 function sv_(v) { return v == null ? '' : String(v); }   // keep IMEI / phone cells as text even if Sheets turned them into numbers
+function recordFromRow_(row) {
+  return {
+    id: row[0], status: row[1] || 'stock',
+    source: sv_(row[2]), sourcePhone: sv_(row[3]), model: sv_(row[4]),
+    imeiBox: row[5] === 'Bor', imei: sv_(row[6]),
+    buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
+    sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
+    buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
+    buyer: sv_(row[13]), buyerPhone: sv_(row[14]),
+    isNew: row[15] === 'Yangi' ? true : (row[15] === 'Ishlatilgan' ? false : isNewModel_(row[4])),
+    brandCell: row[16] || ''
+  };
+}
 function readSheetRecords_(sh) {
   var out = [];
   readRows_(sh).forEach(function (row) {
-    var id = row[0];
-    if (!id) return;
-    out.push({
-      id: id, status: row[1] || 'stock',
-      source: sv_(row[2]), sourcePhone: sv_(row[3]), model: sv_(row[4]),
-      imeiBox: row[5] === 'Bor', imei: sv_(row[6]),
-      buyDate: dateBack_(row[7]), buyTime: timeBack_(row[8]),
-      sellDate: dateBack_(row[9]), sellTime: timeBack_(row[10]),
-      buyPrice: row[11] === '' ? null : row[11], sellPrice: row[12] === '' ? null : row[12],
-      buyer: sv_(row[13]), buyerPhone: sv_(row[14]),
-      isNew: row[15] === 'Yangi' ? true : (row[15] === 'Ishlatilgan' ? false : isNewModel_(row[4])),
-      brandCell: row[16] || ''
-    });
+    if (!row[0]) return;
+    out.push(recordFromRow_(row));
   });
   return out;
 }
@@ -365,7 +377,8 @@ function recFrom_(id, d) {
   };
 }
 
-function writeBody_(sh, rows) {
+function writeBody_(sh, rows, width) {
+  var W = width || HEADERS.length;
   try {
     var need = rows.length + 1;
     if (typeof sh.getMaxRows === 'function' && typeof sh.insertRowsAfter === 'function' && need > sh.getMaxRows()) {
@@ -373,8 +386,8 @@ function writeBody_(sh, rows) {
     }
   } catch (e) { Logger.log('grow sheet failed: ' + e); }
   var lastRow = sh.getLastRow();
-  if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, HEADERS.length).clearContent();
-  if (rows.length) sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
+  if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, W).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, W).setValues(rows);
 }
 
 var PARTY_FNS = {
@@ -412,6 +425,20 @@ function applyChangeAndRewriteAll_(mutate) {
     sheets[def.name] = sh;
     pending[def.name] = readPendingRows_(sh);
   });
+  var trashSheet = getOrCreateSheet_(TRASH_TAB.name, TRASH_TAB.color);
+  ensureHeader_(trashSheet, TRASH_TAB.color);
+  var trashed = {}, trashExtras = [];       // deleted phones (id -> record) and anything else typed into that tab
+  readRows_(trashSheet, TRASH_HEADERS.length).forEach(function (row) {
+    if (row[0]) {
+      var tr = recordFromRow_(row);
+      tr.brand = (tr.brandCell === 'iphone' || tr.brandCell === 'samsung') ? tr.brandCell : 'other';
+      delete tr.brandCell;
+      tr.deletedAt = sv_(row[17]); tr.deletedReason = sv_(row[18]);
+      trashed[tr.id] = tr;
+    } else {
+      for (var i = 2; i < row.length; i++) { if (row[i] !== '' && row[i] != null) { trashExtras.push(row); break; } }
+    }
+  });
   SHEET_DEFS.concat([NEW_TAB]).forEach(function (def) {      // new phones live in Yangi, used ones in their brand tab
     readSheetRecords_(sheets[def.name]).forEach(function (rec) {
       if (master[rec.id]) return;
@@ -421,7 +448,7 @@ function applyChangeAndRewriteAll_(mutate) {
     });
   });
 
-  var adopted = mutate(master) || []; // caller adds/updates/removes records in place; may return records it adopted from the sheet
+  var adopted = mutate(master, trashed) || []; // caller adds/updates/removes records in place; may return records it adopted from the sheet
 
   // an adopted record replaces exactly one matching typed-in row (so it is not shown twice)
   adopted.forEach(function (rec) {
@@ -454,6 +481,12 @@ function applyChangeAndRewriteAll_(mutate) {
   write(ALL_TAB, everything, MIXED_FNS);
   write(NEW_TAB, fresh, MIXED_FNS);
 
+  var trashRows = Object.keys(trashed).map(function (id) { return trashed[id]; })
+    .sort(function (a, b) { return String(b.deletedAt || '').localeCompare(String(a.deletedAt || '')); })
+    .map(function (rec) { return rowFor_(rec).concat([rec.deletedAt || '', rec.deletedReason || '']); });
+  trashExtras.forEach(function (r) { trashRows.push(r); });
+  writeBody_(trashSheet, trashRows, TRASH_HEADERS.length);
+
   if (tabsCreated_) { tabsCreated_ = false; orderTabs_(); }
 }
 
@@ -462,12 +495,12 @@ function applyChangeAndRewriteAll_(mutate) {
  *  Never touches data rows. */
 function setupSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  allTabs_().forEach(function (def) {
+  allTabs_().concat([TRASH_TAB]).forEach(function (def) {
     var sh = getOrCreateSheet_(def.name, def.color);
     try { formatSheet_(sh, def.color); } catch (e) { Logger.log('format ' + def.name + ' failed: ' + e); }
   });
   ss.getSheets().forEach(function (s) {
-    var keep = allTabs_().some(function (d) { return d.name === s.getName(); });
+    var keep = allTabs_().concat([TRASH_TAB]).some(function (d) { return d.name === s.getName(); });
     if (!keep && s.getLastRow() === 0) {
       try { ss.deleteSheet(s); } catch (e) { /* can't delete the only sheet left; ignore */ }
     }
@@ -492,6 +525,40 @@ function doPost(e) {
     if (action === 'upsert') {
       applyChangeAndRewriteAll_(function (master) {
         master[body.id] = recFrom_(body.id, body.data);
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true }));
+    }
+
+    if (action === 'trash') {
+      // phones deleted on the platform: they leave the live tabs and are kept in "O'chirilgan"
+      var trashedCount = 0;
+      applyChangeAndRewriteAll_(function (master, trashed) {
+        (body.rows || []).forEach(function (r) {
+          var rec = recFrom_(r.id, r.data);
+          rec.deletedAt = r.deletedAt || '';
+          rec.deletedReason = r.reason || '';
+          delete master[r.id];
+          trashed[r.id] = rec;
+          trashedCount++;
+        });
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, count: trashedCount }));
+    }
+
+    if (action === 'restore') {
+      applyChangeAndRewriteAll_(function (master, trashed) {
+        delete trashed[body.id];
+        master[body.id] = recFrom_(body.id, body.data);
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true }));
+    }
+
+    if (action === 'trashPurged') {
+      // deleted for good on the platform: the row stays in "O'chirilgan" as a record, marked as such
+      applyChangeAndRewriteAll_(function (master, trashed) {
+        (body.ids || []).forEach(function (id) {
+          if (trashed[id]) trashed[id].deletedReason = "Butunlay o'chirilgan";
+        });
       });
       return ContentService.createTextOutput(JSON.stringify({ ok: true }));
     }
