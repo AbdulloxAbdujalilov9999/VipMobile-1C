@@ -377,8 +377,8 @@
     <h2>VipMobile</h2>
     <p>Davom etish uchun hisobingizga kiring.</p>
     <form id="loginForm">
-      <input type="email" id="loginEmail" placeholder="Email" autocomplete="off" required>
-      <input type="password" id="loginPassword" placeholder="Parol" autocomplete="new-password" required>
+      <input type="text" inputmode="email" id="entryA" placeholder="Pochta manzili" autocomplete="off" autocapitalize="off" required>
+      <input type="text" class="masked" id="entryB" placeholder="Maxfiy so'z" autocomplete="off" required>
       <div id="loginError" style="color:var(--danger); font-size:12.5px; margin:-4px 0 12px; display:none;"></div>
       <button type="submit" class="btn primary lg" style="width:100%" id="loginSubmitBtn">Kirish</button>
     </form>
@@ -499,7 +499,7 @@
             <div class="icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="var(--gold)" stroke-width="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="var(--gold)" stroke-width="2"/></svg></div>
             <h2>Moliyaviy hisobot</h2>
             <p>Foyda, savdo summasi va eksport/import shu yerda. Davom etish uchun parolni kiriting.</p>
-            <input type="password" id="financePassword" placeholder="Parol" autocomplete="new-password">
+            <input type="text" class="masked" id="financeCode" placeholder="Kod" autocomplete="off">
             <button class="btn primary lg" style="width:100%" id="financeUnlockBtn">Kirish</button>
           </div>
         </div>
@@ -593,7 +593,7 @@
                 <h3>AI yordamchi <span id="aiKeyStatus" class="hint"></span></h3>
                 <div class="field" style="margin-bottom:12px;">
                   <label>Anthropic API kaliti</label>
-                  <input type="password" id="aiKeyInput" placeholder="sk-ant-…" autocomplete="off">
+                  <input type="text" class="masked" id="aiKeyInput" placeholder="sk-ant-…" autocomplete="off">
                 </div>
                 <div class="data-actions">
                   <button class="btn lg primary" id="aiKeySaveBtn">Kalitni saqlash</button>
@@ -2234,8 +2234,8 @@ function doGet(e) {
   document.getElementById("loginForm").addEventListener("submit", function(ev){
     ev.preventDefault();
     if(!auth){ return; }
-    var email = document.getElementById("loginEmail").value.trim();
-    var password = document.getElementById("loginPassword").value;
+    var email = document.getElementById("entryA").value.trim();
+    var password = document.getElementById("entryB").value;
     var btn = document.getElementById("loginSubmitBtn");
     btn.disabled = true; setBtnLabel(btn, "Tekshirilmoqda…");
     auth.signInWithEmailAndPassword(email, password).catch(function(err){
@@ -2257,7 +2257,7 @@ function doGet(e) {
     phonesCol = notesDoc = sheetSyncDoc = monthsDoc = null;
     var fl = document.getElementById("financeLock"), fc = document.getElementById("financeContent");
     if(fl) fl.hidden = false; if(fc) fc.hidden = true;
-    var pw = document.getElementById("financePassword"); if(pw) pw.value = "";
+    var pw = document.getElementById("financeCode"); if(pw) pw.value = "";
     document.querySelectorAll(".overlay.open").forEach(function(o){ o.classList.remove("open"); });
     try{ renderAll(); }catch(e){}
     switchTab("dashboard");
@@ -3063,10 +3063,10 @@ function doGet(e) {
       state.financeView = {mode:"live"};
       document.getElementById("financeLock").hidden = false;
       document.getElementById("financeContent").hidden = true;
-      document.getElementById("financePassword").value = "";
+      document.getElementById("financeCode").value = "";
     }
     if(tab==="finance" && !state.financeUnlocked){
-      setTimeout(function(){ document.getElementById("financePassword").focus(); }, 50);
+      setTimeout(function(){ document.getElementById("financeCode").focus(); }, 50);
     }
   }
   /* Moliya auto-lock: if nobody touches the page for 60 seconds while the finance data is open,
@@ -3109,7 +3109,7 @@ function doGet(e) {
 
   /* ====================== finance password gate ====================== */
   function tryUnlockFinance(){
-    var val = document.getElementById("financePassword").value;
+    var val = document.getElementById("financeCode").value;
     if(val === FINANCE_PASSWORD){
       state.financeUnlocked = true;
       document.getElementById("financeLock").hidden = true;
@@ -3122,7 +3122,7 @@ function doGet(e) {
     }
   }
   document.getElementById("financeUnlockBtn").addEventListener("click", tryUnlockFinance);
-  document.getElementById("financePassword").addEventListener("keydown", function(e){ if(e.key==="Enter") tryUnlockFinance(); });
+  document.getElementById("financeCode").addEventListener("keydown", function(e){ if(e.key==="Enter") tryUnlockFinance(); });
 
   /* ====================== color swatch pickers ====================== */
   function renderSwatches(containerId, inputId, list){
@@ -4399,11 +4399,12 @@ function doGet(e) {
       el.setAttribute("data-form-type","other");         // Dashlane
       el.name = "f"+Math.random().toString(36).slice(2,10);   // a fresh field name every load: nothing to match old autofill/history against
     });
-    /* password boxes: shown as dots but NOT real password fields, so the browser never offers to save or fill them */
-    ["loginPassword","financePassword","aiKeyInput"].forEach(function(id){
+    /* Secret boxes are shown as dots but are plain text fields with neutral names - no "password" type, id, placeholder or
+       autocomplete hint - so Chrome never treats them as a login form and never offers to save them. */
+    ["entryB","financeCode","aiKeyInput"].forEach(function(id){
       var el = document.getElementById(id); if(!el) return;
-      el.setAttribute("autocomplete","new-password");
-      if(canMask){ el.type = "text"; el.classList.add("masked"); } else { el.type = "password"; }
+      el.setAttribute("autocomplete","off");
+      if(canMask){ el.type = "text"; el.classList.add("masked"); } else { el.type = "password"; }   // (very old browsers without dot-masking)
     });
   }
 
