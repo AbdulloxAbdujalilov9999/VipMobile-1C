@@ -542,6 +542,7 @@
                       <button data-brand="all">Barcha telefonlar</button>
                     </div>
                   </div>
+                  <button class="btn lg" id="cleanNotesBtn" title="Fayl tozalash vaqtida dastur yozib qo'ygan eslatmalarni (tuzatildi / tekshiring / fayl:qator) izohlardan olib tashlaydi">Avtomatik izohlarni tozalash</button>
                   <button class="btn lg danger" id="newMonthBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Yangi oy boshlash</button>
                   <button class="btn lg danger" id="wipeAllBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Platformani to'liq tozalash</button>
                 </div>
@@ -3422,6 +3423,51 @@ function doGet(e) {
     setConfirmButton("Ha, Band qilish", false);
     document.getElementById("confirmOverlay").classList.add("open");
   }
+  /* ---- remove the notes the cleaning of the Excel files wrote into phones (Tuzatildi / Tekshiring / Manba / auto Izoh) ---- */
+  var AUTO_NOTE_RES = [
+    /^(iPhone|Umumiy|NEW)-fayl:\d+$/i,
+    /^Sotuv narxi \(kutilayotgan\):/i, /^ASL QATOR:/i, /^Raqam ustunidan:/i, /^IMEI o'rnida:/i,
+    /^(Sotib olingan|Sotilgan) vaqt( \(asl\))?:/i, /^Sotib olingan sana \(asl\):/i, /^Sotilgan sana ustunida/i,
+    /^(Sotib olingan|Sotilgan) vaqt ustunida/i, /^Vaqt ustunida/i, /^Narx ustunida:/i, /^KR ustunida:/i, /^Remontda$/i,
+    /ustunidagi izoh Izohga ko'chirildi$/i, /^(Xaridor raqami|Raqam) formati:/i, /^Model yozuvi tozalandi:/i, /^IMEI:\s/i,
+    /formati to'g'rilandi/i, /\(so'z o'rniga belgilangan vaqt\)/i, /bo'sh qoldirildi$/i, /ustunidagi so'z \(.*\) Izohga ko'chirildi/i,
+    /^Vaqt 'Uning raqami' ustunida/i, /^Vaqt ustunidagi telefon raqami/i, /^Boshqa varag'iga qo'yildi/i, /^'14M PRO'/i,
+    /^Qator bir ustun siljigan edi/i, /sotuv tasdiqlanmagani uchun Izohga o'tkazildi/i, /^Model nomi: .* -> .* \(Redmi/i,
+    /^Sotib olingan sana (eski|kelajakda|tushunarsiz)/i, /^Sotilgan sana kelajakda/i, /^Sotib olingan sana .*\(yil \d+\)/i,
+    /^Sotilgan sana \(.*\) sotib olishdan/i, /^IMEI (tekshiruvdan|soxta|yo'q|\d+ xonali)/i, /^Sotilgan sana ustunida sana emas/i,
+    /^(Sotib olingan|Sotilgan) vaqt (noto'g'ri|\d{2}:\d{2})/i, /^Sotilgan vaqt \(.*oldin$/i, /^Sotilgan, lekin sotilgan sana yo'q/i,
+    /^Sotilgan sana (bor|va xaridor bor)/i, /^Sotib olingan narx yo'q$/i, /^Sotilgan narx \(.*\) olingan narxdan/i, /^Foyda juda katta:/i,
+    /^Bu IMEI boshqa qatorda ham bor/i, /^Xotira '28GB'/i, /^Telefon emas \/ to'liq emas qator/i, /^Sotib olingan sana ustunida sana o'rniga raqam/i
+  ];
+  function hasAutoNote(note){
+    return String(note||"").split(/\s*;\s*/).some(function(s){ s = s.trim(); return s && AUTO_NOTE_RES.some(function(re){ return re.test(s); }); });
+  }
+  function stripAutoNotes(note){
+    var segs = String(note||"").split(/\s*;\s*/);
+    return segs.filter(function(s){ s = s.trim(); return s && !AUTO_NOTE_RES.some(function(re){ return re.test(s); }); }).join("; ");
+  }
+  document.getElementById("cleanNotesBtn").addEventListener("click", function(){
+    var hit = state.phones.concat(state.trash||[]).filter(function(p){ return hasAutoNote(p.note); });
+    if(!hit.length){ toast("Dastur yozgan avtomatik izoh topilmadi"); return; }
+    confirmAction = "clean-notes";
+    document.getElementById("confirmTitle").textContent = "Avtomatik izohlarni tozalash";
+    document.getElementById("confirmText").textContent = hit.length+" ta telefonda dastur yozgan eslatmalar topildi (\"Tuzatildi\", \"Tekshiring\", fayl:qator va shunga o'xshash). Ular o'chiriladi. O'zingiz yozgan izohlar qoladi.";
+    setConfirmButton("Tozalash", false);
+    document.getElementById("confirmOverlay").classList.add("open");
+  });
+  async function runCleanNotes(){
+    var hit = state.phones.concat(state.trash||[]).filter(function(p){ return hasAutoNote(p.note); });
+    try{
+      for(var i=0;i<hit.length;i+=400){
+        var b = db.batch();
+        hit.slice(i,i+400).forEach(function(p){ b.update(phonesCol.doc(p.id), {note: stripAutoNotes(p.note)}); });
+        await b.commit();
+      }
+      toast(hit.length+" ta telefondagi avtomatik izoh tozalandi");
+    }catch(e){ toast("Tozalashda xatolik: "+(e.code||e.message), true); }
+    closeConfirm();
+  }
+
   /* Soft delete: the phone stays in the database flagged "deleted" (nothing is lost, and it needs no new database rules). */
   async function moveToTrash(ids, reason){
     var now = new Date().toISOString();
@@ -3451,7 +3497,9 @@ function doGet(e) {
     }catch(e){ toast("Qaytarishda xatolik: "+(e.code||e.message), true); }
   }
   async function doConfirm(){
-    if(confirmAction==="purge-phone"){
+    if(confirmAction==="clean-notes"){
+      await runCleanNotes();
+    } else if(confirmAction==="purge-phone"){
       if(!state.deleteId || !phonesCol) return;
       try{ var purgeId = state.deleteId; await phonesCol.doc(purgeId).delete(); queueSheet({action:"trashPurged", ids:[purgeId]}, function(){}); toast("Butunlay o'chirildi (Sheetdagi \"O'chirilgan\" varag'ida belgi bilan qoladi)"); }
       catch(e){ toast("O'chirishda xatolik: "+(e.code||e.message), true); }
