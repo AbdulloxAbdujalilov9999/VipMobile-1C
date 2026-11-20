@@ -263,7 +263,12 @@
   .phone-table thead th:nth-child(5){ width:110px; }
   .phone-table thead th:nth-child(6){ width:100px; }
   .phone-table thead th:nth-child(7){ width:16%; }
-  .phone-table thead th:last-child{ width:250px; }
+  .phone-table thead th:nth-child(8){ width:250px; }
+  .phone-table thead th:nth-child(9){ width:340px; }
+  /* the table is made 360px wider than its box: the first 8 columns look as before, the comments column waits off to the right */
+  table.phone-table{ width:calc(100% + 360px); min-width:calc(980px + 360px); }
+  .cell-note{ white-space:pre-wrap; word-break:break-word; font-size:12.5px; line-height:1.45; color:var(--ink-dim); }
+  .cell-note .sell-note{ margin-top:4px; color:var(--gold); }
   thead th.rownum, tbody td.rownum{ text-align:center; width:38px; color:var(--ink-faint); background:var(--surface-2); }
   tbody td{ padding:8px 12px; border:1px solid var(--border); vertical-align:top; }
   tbody tr:nth-child(even){ background:rgba(255,255,255,.015); }
@@ -2382,6 +2387,7 @@ function doGet(e) {
               '<th data-sort="buyDate">Sotib olindi</th>'+
               '<th data-sort="sellDate">Kimga sotildi</th>'+
               '<th></th>'+
+              '<th>Izoh</th>'+
             '</tr></thead>'+
             '<tbody id="tbody-'+brand+'"></tbody>'+
           '</table>'+
@@ -2408,7 +2414,7 @@ function doGet(e) {
       var q = st.search.toLowerCase();
       var qDigits = st.search.replace(/\D/g,"");
       list = list.filter(function(p){
-        var textHit = [p.model,p.imei,p.source,p.sourcePhone,p.buyer,p.buyerPhone,p.note].some(function(f){
+        var textHit = [p.model,p.imei,p.source,p.sourcePhone,p.buyer,p.buyerPhone,p.note,p.sellNote].some(function(f){
           return f && String(f).toLowerCase().indexOf(q)!==-1;
         });
         if(textHit) return true;
@@ -2454,6 +2460,7 @@ function doGet(e) {
         (showBandBtn ? '<button class="btn sm ghost" data-band="'+p.id+'" style="color:var(--gold)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="2"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Band</button>' : '')+
         (showReturnBtn ? '<button class="btn sm ghost" data-return="'+p.id+'" style="color:var(--gold)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 12H4M4 12l6-6M4 12l6 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Qaytarib olindi</button>' : '')+
       '</div></td>'+
+      '<td><div class="cell-note">'+(p.note ? esc(p.note) : '<span class="cell-sub">—</span>')+(p.sellNote ? '<div class="sell-note">Sotuv: '+esc(p.sellNote)+'</div>' : '')+'</div></td>'+
     '</tr>';
   }
 
@@ -2480,7 +2487,7 @@ function doGet(e) {
     if(!tbody) return;
 
     if(!list.length){
-      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">Hech narsa topilmadi</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">Hech narsa topilmadi</div></td></tr>';
     } else {
       var tiers;
       if(st.status==="all"){
@@ -2541,14 +2548,14 @@ function doGet(e) {
         var partyNames = Object.keys(groups).sort(function(a,b){ return partySortFn(a)-partySortFn(b); });
         partyNames.forEach(function(party){
           var rows = groups[party].slice().sort(byBuyDateDesc);
-          html += '<tr class="group-row"><td colspan="8">'+esc(party==="Boshqa"?"Aniqlanmagan model":party)+' <span>('+rows.length+' dona)</span></td></tr>';
+          html += '<tr class="group-row"><td colspan="9">'+esc(party==="Boshqa"?"Aniqlanmagan model":party)+' <span>('+rows.length+' dona)</span></td></tr>';
           rows.forEach(function(p){ rowNum++; html += renderRow(p, rowNum-1, brand); });
         });
       }
 
       tiers.forEach(function(tier){
         if(!tier.items.length) return;
-        if(tier.label) html += '<tr class="tier-divider"><td colspan="8">'+tier.label+' ('+tier.items.length+' ta)</td></tr>';
+        if(tier.label) html += '<tr class="tier-divider"><td colspan="9">'+tier.label+' ('+tier.items.length+' ta)</td></tr>';
         renderGroup(tier.items);
       });
       tbody.innerHTML = html;
