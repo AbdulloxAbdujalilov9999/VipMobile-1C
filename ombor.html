@@ -523,7 +523,9 @@
         </div>
         <div class="toolbar">
           <button class="btn lg danger" id="emptyTrashBtn">Axlat qutisini bo'shatish</button>
+          <button class="btn lg" id="checkSheetTrashBtn">Sheetdagi o'chirilganlarni tekshirish</button>
         </div>
+        <div id="trashSheetNote" class="setup-banner" hidden style="margin-bottom:14px"></div>
         <div class="table-wrap">
           <div class="table-scroll">
             <table class="trash-table" id="table-trash">
@@ -2158,8 +2160,13 @@ function doGet(e) {
   /* ---- the platform's Axlat qutisi and the Sheet's "O'chirilgan" tab are kept in step, both ways ---- */
   var trashSeenOnce = {};      // ids that were in the Sheet's deleted tab but unknown here at the previous check
   var purgedHere = {};         // ids deleted for good in this browser
+  state.sheetTrashInfo = {checked:false, supported:true, unknown:[]};
   async function syncTrashWithSheet(json){
-    if(!json || json.trashed===undefined || !phonesCol) return;           // old script: it has no deleted tab
+    if(!json || !phonesCol) return;
+    if(json.trashed===undefined){                                         // old script: it has no deleted tab
+      state.sheetTrashInfo = {checked:true, supported:false, unknown:[]};
+      renderTrash(); return;
+    }
     var inSheet = {};
     json.trashed.forEach(function(r){ inSheet[r.id] = r; });
     /* 1) deleted here but not listed in the Sheet yet (deleted before the script was updated, or a write failed): send them */
@@ -2170,6 +2177,7 @@ function doGet(e) {
     /* 2) listed in the Sheet's deleted tab but unknown here: put them back into the platform's trash (needs to be seen twice in a row, so a phone that is being deleted right now is not resurrected) */
     var known = {};
     state.phones.concat(state.trash||[]).forEach(function(p){ known[p.id] = true; });
+    state.sheetTrashInfo = {checked:true, supported:true, unknown: json.trashed.filter(function(r){ return !known[r.id]; })};
     var nowSeen = {}, recover = [];
     json.trashed.forEach(function(r){
       if(known[r.id] || purgedHere[r.id] || /Butunlay/i.test(r.deletedReason||"")) return;
@@ -2190,6 +2198,28 @@ function doGet(e) {
       }
       toast(recover.length+" ta o'chirilgan telefon Sheetdan axlat qutisiga qaytarildi");
     }
+    renderTrash();
+  }
+  /* manual: put every phone listed in the Sheet's deleted tab (and unknown here) into the platform's trash, purged-marked ones included */
+  async function recoverSheetTrash(){
+    var list = (state.sheetTrashInfo && state.sheetTrashInfo.unknown) || [];
+    if(!list.length || !phonesCol) return;
+    var now = new Date().toISOString();
+    try{
+      for(var i=0;i<list.length;i+=400){
+        var b = db.batch();
+        list.slice(i,i+400).forEach(function(r, j){
+          var d = phoneFromSheetRow(r, Date.now()+i+j);
+          d.deleted = true; d.deletedAt = r.deletedAt || now; d.deletedReason = (r.deletedReason && !/Butunlay/i.test(r.deletedReason)) ? r.deletedReason : "Sheetdan tiklandi"; d.updatedAt = now;
+          b.set(phonesCol.doc(r.id), d);
+          delete purgedHere[r.id];
+        });
+        await b.commit();
+      }
+      toast(list.length+" ta telefon Sheetdan axlat qutisiga qaytarildi");
+      state.sheetTrashInfo.unknown = [];
+      renderTrash();
+    }catch(e){ toast("Qaytarishda xatolik: "+(e.code||e.message), true); }
   }
   var sheetCheckInFlight = false;
   var sheetSeenPending = {};     // typed-in rows seen at the previous check (occurrence key -> true)
@@ -3320,6 +3350,21 @@ function doGet(e) {
     if(!tb) return;
     var list = state.trash || [];
     var c = document.getElementById("count-trash"); if(c) c.textContent = list.length;
+    var note = document.getElementById("trashSheetNote");
+    if(note){
+      var info = state.sheetTrashInfo || {};
+      if(!sheetSyncReady()){ note.hidden = true; }
+      else if(info.checked && info.supported===false){
+        note.hidden = false;
+        note.innerHTML = '<b>Google Sheet skripti eski versiyada.</b> Shuning uchun Sheetdagi "O\'chirilgan" varag\'i bilan moslashtirib bo\'lmaydi. Yangilash: Moliya → <b>Copy SheetSync</b> → Apps Script\'da eski kodni almashtiring → Deploy → Manage deployments → <b>New version</b>.';
+      } else if(info.checked && info.unknown && info.unknown.length){
+        note.hidden = false;
+        var purged = info.unknown.filter(function(r){ return /Butunlay/i.test(r.deletedReason||""); }).length;
+        note.innerHTML = '<b>Sheetning "O\'chirilgan" varag\'ida '+info.unknown.length+' ta telefon bor, platformada yo\'q.</b>'+(purged?' ('+purged+' tasi "butunlay o\'chirilgan" deb belgilangan.) ':' ')+
+          '<button class="btn sm" id="recoverSheetTrashBtn" style="margin-left:8px">Hammasini axlat qutisiga qaytarish</button>';
+        var rb = document.getElementById("recoverSheetTrashBtn"); if(rb) rb.onclick = recoverSheetTrash;
+      } else note.hidden = true;
+    }
     var eb = document.getElementById("emptyTrashBtn"); if(eb) eb.disabled = !list.length;
     if(!list.length){ tb.innerHTML = '<tr><td colspan="7"><div class="empty-state">Axlat qutisi bo\'sh</div></td></tr>'; return; }
     tb.innerHTML = list.map(function(p,i){
@@ -3348,6 +3393,19 @@ function doGet(e) {
       };
     });
   }
+  document.getElementById("checkSheetTrashBtn").addEventListener("click", async function(){
+    if(!sheetSyncReady()){ toast("Avval Moliya > Google Sheet havolasini ulang", true); return; }
+    var btn = this; btn.disabled = true;
+    try{
+      var json = await fetchSheetExport(activeSheetSyncUrl());
+      await syncTrashWithSheet(json);
+      var info = state.sheetTrashInfo;
+      if(!info.supported) toast("Sheet skripti eski — yangilash kerak (yuqoridagi izohga qarang)", true);
+      else if(info.unknown.length) toast(info.unknown.length+" ta telefon Sheetda bor, platformada yo'q — \"Qaytarish\" tugmasini bosing");
+      else toast("Axlat qutisi Sheet bilan bir xil");
+    }catch(e){ toast("Sheetni tekshirishda xatolik: "+e.message, true); }
+    btn.disabled = false;
+  });
   document.getElementById("emptyTrashBtn").addEventListener("click", function(){
     if(!state.trash.length) return;
     confirmAction = "empty-trash";
