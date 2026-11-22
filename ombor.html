@@ -140,6 +140,8 @@
   .date-row .sort-label{ font-size:12px; color:var(--ink-dim); font-weight:700; }
   .date-row input[type=date], .date-row select{ background:var(--surface); color:var(--ink); border:1px solid var(--border); border-radius:10px; padding:8px 10px; font:inherit; font-size:13px; color-scheme:dark; }
   .date-row .dash{ color:var(--ink-faint); }
+  .date-row .chip[data-quick].active{ background:var(--accent); color:#fff; border-color:var(--accent); font-weight:800; }
+  .date-row .chip[data-quick].active::after{ content:" ✕"; font-size:11px; opacity:.85; }
   .date-field{ display:inline-flex; align-items:center; gap:8px; background:var(--surface); color:var(--ink-dim); border:1px solid var(--border); border-radius:10px; padding:8px 12px; font:inherit; font-size:13px; cursor:pointer; min-width:200px; }
   .date-field:hover{ border-color:var(--accent); }
   .date-field.has-value{ color:var(--ink); border-color:var(--accent); font-weight:700; }
@@ -2478,7 +2480,6 @@ function doGet(e) {
       '<button class="chip" data-quick="yesterday">Kecha</button>'+
       '<button class="chip" data-quick="week">7 kun</button>'+
       '<button class="chip" data-quick="month">Shu oy</button>'+
-      '<button class="chip" data-quick="clear">Tozalash</button>'+
       '<div class="cal-pop" id="'+pid+'Cal" hidden></div>'+
     '</div>';
   }
@@ -2496,12 +2497,18 @@ function doGet(e) {
       if(by) by.value = st.dateBy||"buy";
       document.querySelectorAll("#"+pid+"Row [data-quick]").forEach(function(b){
         var q = quickRange(b.getAttribute("data-quick"));
-        b.classList.toggle("active", b.getAttribute("data-quick")!=="clear" && q[0]===(st.dateFrom||"") && q[1]===(st.dateTo||"") && !!st.dateFrom);
+        b.classList.toggle("active", q[0]===(st.dateFrom||"") && q[1]===(st.dateTo||"") && !!st.dateFrom);
       });
     }
     if(by) by.addEventListener("change", function(){ getSt().dateBy = by.value; sync(); onChange(); });
     document.querySelectorAll("#"+pid+"Row [data-quick]").forEach(function(b){
-      b.addEventListener("click", function(){ var r = quickRange(b.getAttribute("data-quick")), st = getSt(); st.dateFrom = r[0]; st.dateTo = r[1]; sync(); onChange(); if(!pop.hidden) renderCal(); });
+      b.addEventListener("click", function(){
+        var r = quickRange(b.getAttribute("data-quick")), st = getSt();
+        var isOn = !!st.dateFrom && st.dateFrom===r[0] && st.dateTo===r[1];
+        if(isOn){ st.dateFrom = ""; st.dateTo = ""; }          // pressing the highlighted button again turns the filter off
+        else { st.dateFrom = r[0]; st.dateTo = r[1]; }
+        sync(); onChange(); if(!pop.hidden) renderCal();
+      });
     });
     function renderCal(){
       var st = getSt(), v = calView[pid], counts = getDayCounts ? (getDayCounts() || {}) : {};
