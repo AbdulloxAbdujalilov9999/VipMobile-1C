@@ -136,6 +136,14 @@
   .sort-bar .chip.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
   input.masked{ -webkit-text-security:disc; }
   table.trash-table{ min-width:860px; }
+  .date-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; width:100%; }
+  .date-row .sort-label{ font-size:12px; color:var(--ink-dim); font-weight:700; }
+  .date-row input[type=date], .date-row select{ background:var(--surface); color:var(--ink); border:1px solid var(--border); border-radius:10px; padding:8px 10px; font:inherit; font-size:13px; color-scheme:dark; }
+  .date-row .dash{ color:var(--ink-faint); }
+  .period-summary{ background:var(--surface); border:1px solid var(--accent); border-radius:14px; padding:14px 16px; margin-bottom:16px; display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; }
+  .period-summary .ps-title{ font-weight:800; color:var(--ink); width:100%; }
+  .period-summary .ps-item{ font-size:13.5px; color:var(--ink-dim); }
+  .period-summary .ps-item b{ color:var(--ink); font-family:'IBM Plex Mono',monospace; }
   .return-note{ background:var(--gold-soft); color:var(--gold); border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.5; margin-bottom:12px; }
   .brand-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
   @media (max-width:1100px){ .brand-row{ grid-template-columns:repeat(2,1fr); } }
@@ -513,6 +521,8 @@
             <h1>Moliyaviy hisobot</h1>
           </div>
           <div id="monthViewBanner" hidden class="setup-banner" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;"></div>
+          <div id="finDateBar"></div>
+          <div id="finPeriodSummary" style="margin-top:12px"></div>
           <div class="kpi-grid" id="finKpiGrid"></div>
           <div class="type-head">Ishlatilgan telefonlar <span style="text-transform:none; letter-spacing:0; font-weight:600;">— kartani bosing: shu turdagi sotilgan telefonlar va foyda ro'yxati</span></div>
           <div class="type-grid" id="finTypeGrid"></div>
@@ -842,6 +852,22 @@
         <button type="submit" class="btn primary lg" id="saveMonthBtn">Saqlash</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="overlay" id="boughtListOverlay">
+  <div class="modal wide">
+    <button class="modal-close" id="closeBoughtListModal">&times;</button>
+    <h2>Sotib olingan telefonlar</h2>
+    <div class="modal-sub" id="boughtListSub"></div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="boughtListTable">
+          <thead><tr><th class="rownum">#</th><th>Model</th><th>Sana</th><th>Sotib olingan narx</th><th>Holati</th></tr></thead>
+          <tbody id="boughtListTbody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1602,12 +1628,13 @@ function doGet(e) {
     trash: [],
     notes: "",
     sec: {
-      iphone: {search:"", status:"all", gen:"all"},
-      samsung:{search:"", status:"all", gen:"all"},
-      other:  {search:"", status:"all"},
-      all:    {search:"", status:"all", type:"all"},
-      new:    {search:"", status:"all", type:"all"}
+      iphone: {search:"", status:"all", gen:"all", dateFrom:"", dateTo:"", dateBy:"buy"},
+      samsung:{search:"", status:"all", gen:"all", dateFrom:"", dateTo:"", dateBy:"buy"},
+      other:  {search:"", status:"all", dateFrom:"", dateTo:"", dateBy:"buy"},
+      all:    {search:"", status:"all", type:"all", dateFrom:"", dateTo:"", dateBy:"buy"},
+      new:    {search:"", status:"all", type:"all", dateFrom:"", dateTo:"", dateBy:"buy"}
     },
+    fin: {dateFrom:"", dateTo:""},
     editingId: null,
     editingBrand: "iphone",
     deleteId: null,
@@ -2275,7 +2302,7 @@ function doGet(e) {
     listenerUnsubs = [];
     if(state.sheetCheckInterval){ clearInterval(state.sheetCheckInterval); state.sheetCheckInterval = null; }
     state.phones = []; state.trash = []; state.financeMonths = []; state.sheetSyncUrl = ""; state.sheetLinkUrl = "";
-    state.financeUnlocked = false; state.financeView = {mode:"live"};
+    state.financeUnlocked = false; state.financeView = {mode:"live"}; state.fin = {dateFrom:"", dateTo:""};
     phonesCol = notesDoc = sheetSyncDoc = monthsDoc = null;
     var fl = document.getElementById("financeLock"), fc = document.getElementById("financeContent");
     if(fl) fl.hidden = false; if(fc) fc.hidden = true;
@@ -2375,6 +2402,7 @@ function doGet(e) {
         statusChips+
         genChips+
         typeChips+
+        dateBarHTML('date-'+brand, true)+
       '</div>'+
       '<div class="table-wrap">'+
         '<div class="table-scroll">'+
@@ -2397,6 +2425,62 @@ function doGet(e) {
       '<div class="pager" id="pager-'+brand+'" style="padding:14px 0 0; text-align:center; font-size:12.5px; color:var(--ink-faint);"></div>';
   }
 
+  /* ====================== date filter (one day or a period) ====================== */
+  function isoLocal(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function quickRange(kind){
+    var d = new Date(), today = isoLocal(d);
+    if(kind==="today") return [today, today];
+    if(kind==="yesterday"){ var y = new Date(d); y.setDate(y.getDate()-1); var ys = isoLocal(y); return [ys, ys]; }
+    if(kind==="week"){ var w = new Date(d); w.setDate(w.getDate()-6); return [isoLocal(w), today]; }
+    if(kind==="month") return [d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01", today];
+    return ["",""];
+  }
+  function inRange(iso, from, to){
+    if(!from && !to) return true;
+    if(!iso) return false;
+    iso = String(iso).slice(0,10);
+    return (!from || iso>=from) && (!to || iso<=to);
+  }
+  function rangeLabel(from, to){
+    if(!from && !to) return "";
+    if(from && to && from===to) return fmtDate(from);
+    return (from ? fmtDate(from) : "…")+" — "+(to ? fmtDate(to) : "…");
+  }
+  function dateBarHTML(pid, withBy){
+    return '<div class="date-row" id="'+pid+'Row">'+
+      '<span class="sort-label">Sana:</span>'+
+      (withBy ? '<select id="'+pid+'By"><option value="buy">Sotib olingan (qo\'shilgan)</option><option value="sell">Sotilgan</option></select>' : '')+
+      '<input type="date" id="'+pid+'From" title="Boshlanish sanasi"><span class="dash">—</span><input type="date" id="'+pid+'To" title="Tugash sanasi">'+
+      '<button class="chip" data-quick="today">Bugun</button>'+
+      '<button class="chip" data-quick="yesterday">Kecha</button>'+
+      '<button class="chip" data-quick="week">7 kun</button>'+
+      '<button class="chip" data-quick="month">Shu oy</button>'+
+      '<button class="chip" data-quick="clear">Tozalash</button>'+
+    '</div>';
+  }
+  var dateBarSync = {};
+  /* st = the object that holds dateFrom / dateTo (/ dateBy). Picking only one day fills both ends, so a single day is one click. */
+  function bindDateBar(pid, getSt, onChange){
+    var from = document.getElementById(pid+"From"), to = document.getElementById(pid+"To"), by = document.getElementById(pid+"By");
+    if(!from || !to) return;
+    function sync(){
+      var st = getSt();
+      from.value = st.dateFrom||""; to.value = st.dateTo||""; if(by) by.value = st.dateBy||"buy";
+      document.querySelectorAll("#"+pid+"Row [data-quick]").forEach(function(b){
+        var q = quickRange(b.getAttribute("data-quick"));
+        b.classList.toggle("active", b.getAttribute("data-quick")!=="clear" && q[0]===(st.dateFrom||"") && q[1]===(st.dateTo||"") && !!st.dateFrom);
+      });
+    }
+    from.addEventListener("change", function(){ var st = getSt(); st.dateFrom = from.value; if(st.dateFrom && (!st.dateTo || st.dateTo<st.dateFrom)) st.dateTo = st.dateFrom; sync(); onChange(); });
+    to.addEventListener("change", function(){ var st = getSt(); st.dateTo = to.value; if(st.dateTo && (!st.dateFrom || st.dateFrom>st.dateTo)) st.dateFrom = st.dateTo; sync(); onChange(); });
+    if(by) by.addEventListener("change", function(){ getSt().dateBy = by.value; sync(); onChange(); });
+    document.querySelectorAll("#"+pid+"Row [data-quick]").forEach(function(b){
+      b.addEventListener("click", function(){ var r = quickRange(b.getAttribute("data-quick")), st = getSt(); st.dateFrom = r[0]; st.dateTo = r[1]; sync(); onChange(); });
+    });
+    dateBarSync[pid] = sync;
+    sync();
+  }
+
   function filteredPhones(brand){
     var st = state.sec[brand];
     var list;
@@ -2410,6 +2494,10 @@ function doGet(e) {
     }
     if(brand==="samsung" && st.gen && st.gen!=="all"){
       list = list.filter(function(p){ return samsungGenAndParty(p.model).gen===st.gen; });
+    }
+    if(st.dateFrom || st.dateTo){
+      var dKey = st.dateBy==="sell" ? "sellDate" : "buyDate";
+      list = list.filter(function(p){ return inRange(p[dKey], st.dateFrom, st.dateTo); });
     }
     if(st.search){
       var q = st.search.toLowerCase();
@@ -2562,7 +2650,8 @@ function doGet(e) {
       tbody.innerHTML = html;
     }
 
-    document.getElementById("pager-"+brand).textContent = list.length ? ("Jami: "+list.length+" ta") : "";
+    var periodTxt = (st.dateFrom||st.dateTo) ? " · "+rangeLabel(st.dateFrom, st.dateTo)+" ("+(st.dateBy==="sell"?"sotilgan":"sotib olingan")+")" : "";
+    document.getElementById("pager-"+brand).textContent = list.length ? ("Jami: "+list.length+" ta"+periodTxt) : (periodTxt ? "Tanlangan sanada telefon yo'q"+periodTxt : "");
 
     tbody.querySelectorAll("[data-edit]").forEach(function(btn){
       btn.onclick = function(){ openPhoneModal(btn.getAttribute("data-edit"), btn.getAttribute("data-brand")); };
@@ -2600,6 +2689,7 @@ function doGet(e) {
         renderSection(brand);
       });
     }
+    bindDateBar('date-'+brand, function(){ return state.sec[brand]; }, function(){ renderSection(brand); });
     var typeRow = document.getElementById("typeChips-"+brand);
     if(typeRow){
       typeRow.addEventListener("click", function(e){
@@ -2707,7 +2797,11 @@ function doGet(e) {
       banner.hidden = true;
     }
     var all = (view.mode==="month" && view.records) ? view.records : state.phones;
+    var fp = state.fin || {dateFrom:"", dateTo:""};
+    var period = !!(fp.dateFrom || fp.dateTo);
     var sold = all.filter(function(p){return p.status==="sold";});
+    if(period) sold = sold.filter(function(p){ return inRange(p.sellDate, fp.dateFrom, fp.dateTo); });          // profit counts phones SOLD in the period
+    var bought = period ? all.filter(function(p){ return inRange(p.buyDate, fp.dateFrom, fp.dateTo); }) : all;   // "bought" = bought / added in the period
     var stock = all.filter(function(p){return p.status==="stock";});
     var lost = all.filter(function(p){return p.status==="lost";});
 
@@ -2717,6 +2811,21 @@ function doGet(e) {
     var costBasisSold = sold.reduce(function(s,p){ return s+(p.sellPrice!=null ? (p.buyPrice||0) : 0); },0);
     var margin = costBasisSold>0 ? (totalProfit/costBasisSold*100) : 0;
     var lostValue = lost.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
+
+    /* summary of the chosen period + buttons to see the phones */
+    var psEl = document.getElementById("finPeriodSummary");
+    if(psEl){
+      if(period){
+        var boughtSum = bought.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
+        psEl.innerHTML = '<div class="period-summary"><div class="ps-title">Davr: '+esc(rangeLabel(fp.dateFrom, fp.dateTo))+'</div>'+
+          '<div class="ps-item">Sotib olingan: <b>'+bought.length+' ta</b> · xarajat <b>'+fmtMoney(boughtSum)+'</b></div>'+
+          '<div class="ps-item">Sotilgan: <b>'+sold.length+' ta</b> · tushum <b>'+fmtMoney(totalRevenue)+'</b> · foyda <b>'+fmtMoney(totalProfit)+'</b></div>'+
+          '<button class="btn sm" id="psBoughtBtn">Sotib olinganlarni ko\'rish</button>'+
+          '<button class="btn sm" id="psSoldBtn">Sotilganlarni ko\'rish</button></div>';
+        document.getElementById("psBoughtBtn").onclick = function(){ openBoughtListModal(bought, rangeLabel(fp.dateFrom, fp.dateTo)); };
+        document.getElementById("psSoldBtn").onclick = function(){ openSoldListModal(sold, rangeLabel(fp.dateFrom, fp.dateTo), "all", "all"); };
+      } else psEl.innerHTML = "";
+    }
 
     var kpis = [
       {label:"Sof foyda", value:fmtMoney(totalProfit), cls:totalProfit>=0?"success":"danger", sub:sold.length+" ta telefon sotilgan", clickable:true},
@@ -2803,7 +2912,7 @@ function doGet(e) {
     }).join("") : '<div class="empty-state" style="padding:20px">Ma\'lumot yo\'q</div>';
 
     var srcMap = {};
-    all.forEach(function(p){
+    bought.forEach(function(p){
       if(!p.source) return;
       var k = String(p.source).trim();
       if(!srcMap[k]) srcMap[k] = {count:0, sum:0};
@@ -2896,6 +3005,21 @@ function doGet(e) {
   document.querySelectorAll("#soldSortBar [data-sort]").forEach(function(b){
     b.addEventListener("click", function(){ soldListState.sort = b.getAttribute("data-sort"); renderSoldList(); });
   });
+  function openBoughtListModal(list, label){
+    var rows = list.slice().sort(function(a,b){ return String(b.buyDate||"").localeCompare(String(a.buyDate||"")) || String(b.createdAt||"").localeCompare(String(a.createdAt||"")); });
+    var total = rows.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
+    document.getElementById("boughtListSub").textContent = label+" — "+rows.length+" ta telefon · jami xarajat "+fmtMoney(total);
+    document.getElementById("boughtListTbody").innerHTML = rows.length ? rows.map(function(p,i){
+      return '<tr><td class="rownum">'+(i+1)+'</td>'+
+        '<td><div class="cell-model">'+esc(p.model||"Nomsiz")+'</div>'+(p.source?'<div class="cell-sub">'+esc(p.source)+'</div>':'')+'</td>'+
+        '<td>'+esc(fmtDate(p.buyDate))+(fmtTime(p.createdAt)?'<div class="cell-sub">'+fmtTime(p.createdAt)+'</div>':'')+'</td>'+
+        '<td class="mono">'+(p.buyPrice!=null?fmtMoney(p.buyPrice):"—")+'</td>'+
+        '<td><span class="badge '+esc(["stock","sold","lent","lost"].indexOf(p.status)!==-1?p.status:"stock")+'">'+esc(statusLabel(p.status))+'</span></td></tr>';
+    }).join("") : '<tr><td colspan="5"><div class="empty-state">Bu davrda sotib olingan telefon yo\'q</div></td></tr>';
+    document.getElementById("boughtListOverlay").classList.add("open");
+  }
+  document.getElementById("closeBoughtListModal").addEventListener("click", function(){ document.getElementById("boughtListOverlay").classList.remove("open"); });
+  document.getElementById("boughtListOverlay").addEventListener("click", function(e){ if(e.target.id==="boughtListOverlay") this.classList.remove("open"); });
   document.getElementById("closeSoldListModal").addEventListener("click", function(){
     document.getElementById("soldListOverlay").classList.remove("open");
   });
@@ -3076,9 +3200,11 @@ function doGet(e) {
     });
     /* search boxes never keep what was typed: moving to another page empties them */
     BRANDS.concat(VIRTUAL_BRANDS).forEach(function(b){
-      if(state.sec[b] && state.sec[b].search){
-        state.sec[b].search = "";
+      var s = state.sec[b];
+      if(s && (s.search || s.dateFrom || s.dateTo)){
+        s.search = ""; s.dateFrom = ""; s.dateTo = ""; s.dateBy = "buy";   // search and date filter start fresh on every page
         var box = document.getElementById("search-"+b); if(box) box.value = "";
+        if(dateBarSync["date-"+b]) dateBarSync["date-"+b]();
         renderSection(b);
       }
     });
@@ -3088,6 +3214,8 @@ function doGet(e) {
       document.getElementById("financeLock").hidden = false;
       document.getElementById("financeContent").hidden = true;
       document.getElementById("financeCode").value = "";
+      state.fin = {dateFrom:"", dateTo:""};
+      if(dateBarSync.finDate) dateBarSync.finDate();
     }
     if(tab==="finance" && !state.financeUnlocked){
       setTimeout(function(){ document.getElementById("financeCode").focus(); }, 50);
@@ -3105,6 +3233,7 @@ function doGet(e) {
     if(!state.financeUnlocked) { lastActivityAt = Date.now(); return; }
     if(Date.now()-lastActivityAt < FINANCE_IDLE_MS) return;
     try{ document.getElementById("soldListOverlay").classList.remove("open"); }catch(e){}
+    try{ document.getElementById("boughtListOverlay").classList.remove("open"); }catch(e){}
     try{ closeWipeModal(); }catch(e){}
     try{ closeMonthModal(); }catch(e){}
     if(confirmAction==="new-month"){ try{ closeConfirm(); }catch(e){} }
@@ -4453,7 +4582,7 @@ function doGet(e) {
   document.getElementById("filenameOverlay").addEventListener("click", function(e){ if(e.target.id==="filenameOverlay"){ this.classList.remove("open"); state.pendingExport=null; } });
 
   document.addEventListener("keydown", function(e){
-    if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); closeWipeModal(); closeMonthModal(); document.getElementById("soldListOverlay").classList.remove("open"); }
+    if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); closeWipeModal(); closeMonthModal(); document.getElementById("soldListOverlay").classList.remove("open"); document.getElementById("boughtListOverlay").classList.remove("open"); }
   });
 
   /* ====================== privacy: no saved passwords, no remembered search/typing history ====================== */
@@ -4489,6 +4618,8 @@ function doGet(e) {
   BRANDS.forEach(bindSection);
   VIRTUAL_BRANDS.forEach(bindSection);
   populateIphoneModels(null);
+  document.getElementById("finDateBar").innerHTML = dateBarHTML("finDate", false);
+  bindDateBar("finDate", function(){ return state.fin; }, function(){ renderFinance(); });
   hardenInputs();
 
   initFirebase();
