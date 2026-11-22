@@ -136,10 +136,24 @@
   .sort-bar .chip.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
   input.masked{ -webkit-text-security:disc; }
   table.trash-table{ min-width:860px; }
-  .date-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; width:100%; }
+  .date-row{ position:relative; display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; width:100%; }
   .date-row .sort-label{ font-size:12px; color:var(--ink-dim); font-weight:700; }
   .date-row input[type=date], .date-row select{ background:var(--surface); color:var(--ink); border:1px solid var(--border); border-radius:10px; padding:8px 10px; font:inherit; font-size:13px; color-scheme:dark; }
   .date-row .dash{ color:var(--ink-faint); }
+  .cal-pop{ position:absolute; top:100%; left:0; margin-top:6px; z-index:70; width:304px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px; box-shadow:var(--shadow); }
+  .cal-pop[hidden]{ display:none; }
+  .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; font-weight:800; color:var(--ink); }
+  .cal-head button{ background:transparent; border:1px solid var(--border); color:var(--ink); border-radius:8px; width:30px; height:30px; cursor:pointer; font-size:16px; }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-wd{ text-align:center; font-size:11px; color:var(--ink-faint); font-weight:700; padding:2px 0 4px; }
+  .cal-day{ position:relative; aspect-ratio:1/1; border:0; background:transparent; color:var(--ink); border-radius:8px; cursor:pointer; font:inherit; font-size:13px; }
+  .cal-day:hover{ background:var(--surface-2); }
+  .cal-day.today{ outline:1px solid var(--accent); }
+  .cal-day.inrange{ background:var(--accent-soft); }
+  .cal-day.sel{ background:var(--accent); color:#fff; font-weight:800; }
+  .cal-day .n{ position:absolute; right:3px; bottom:1px; font-size:9px; color:var(--gold); font-weight:800; }
+  .cal-day.sel .n{ color:#fff; }
+  .cal-foot{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:8px; font-size:12px; color:var(--ink-dim); }
   .period-summary{ background:var(--surface); border:1px solid var(--accent); border-radius:14px; padding:14px 16px; margin-bottom:16px; display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; }
   .period-summary .ps-title{ font-weight:800; color:var(--ink); width:100%; }
   .period-summary .ps-item{ font-size:13.5px; color:var(--ink-dim); }
@@ -2451,16 +2465,20 @@ function doGet(e) {
       '<span class="sort-label">Sana:</span>'+
       (withBy ? '<select id="'+pid+'By"><option value="buy">Sotib olingan (qo\'shilgan)</option><option value="sell">Sotilgan</option></select>' : '')+
       '<input type="date" id="'+pid+'From" title="Boshlanish sanasi"><span class="dash">—</span><input type="date" id="'+pid+'To" title="Tugash sanasi">'+
+      '<button type="button" class="chip" data-cal="1" title="Kalendardan tanlash"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Kalendar</button>'+
       '<button class="chip" data-quick="today">Bugun</button>'+
       '<button class="chip" data-quick="yesterday">Kecha</button>'+
       '<button class="chip" data-quick="week">7 kun</button>'+
       '<button class="chip" data-quick="month">Shu oy</button>'+
       '<button class="chip" data-quick="clear">Tozalash</button>'+
+      '<div class="cal-pop" id="'+pid+'Cal" hidden></div>'+
     '</div>';
   }
+  var CAL_MONTHS = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
+  var calView = {};      // pid -> {y, m, pending}
   var dateBarSync = {};
   /* st = the object that holds dateFrom / dateTo (/ dateBy). Picking only one day fills both ends, so a single day is one click. */
-  function bindDateBar(pid, getSt, onChange){
+  function bindDateBar(pid, getSt, onChange, getDayCounts){
     var from = document.getElementById(pid+"From"), to = document.getElementById(pid+"To"), by = document.getElementById(pid+"By");
     if(!from || !to) return;
     function sync(){
@@ -2477,7 +2495,49 @@ function doGet(e) {
     document.querySelectorAll("#"+pid+"Row [data-quick]").forEach(function(b){
       b.addEventListener("click", function(){ var r = quickRange(b.getAttribute("data-quick")), st = getSt(); st.dateFrom = r[0]; st.dateTo = r[1]; sync(); onChange(); });
     });
-    dateBarSync[pid] = sync;
+    /* ---- calendar pop-up: click a day = that day; click a second day = the period between them ---- */
+    var pop = document.getElementById(pid+"Cal"), calBtn = document.querySelector("#"+pid+"Row [data-cal]");
+    function renderCal(){
+      var st = getSt(), v = calView[pid], counts = getDayCounts ? (getDayCounts() || {}) : {};
+      var first = new Date(v.y, v.m, 1), offset = (first.getDay()+6)%7, days = new Date(v.y, v.m+1, 0).getDate(), todayIso = isoLocal(new Date());
+      var html = '<div class="cal-head"><button type="button" data-cal-nav="-1">‹</button><span>'+CAL_MONTHS[v.m]+' '+v.y+'</span><button type="button" data-cal-nav="1">›</button></div><div class="cal-grid">';
+      ["Du","Se","Ch","Pa","Ju","Sh","Ya"].forEach(function(w){ html += '<div class="cal-wd">'+w+'</div>'; });
+      for(var i=0;i<offset;i++) html += '<div></div>';
+      for(var d=1; d<=days; d++){
+        var iso = v.y+"-"+String(v.m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+        var cls = "cal-day"+(iso===todayIso?" today":"");
+        if(st.dateFrom && st.dateTo && iso>=st.dateFrom && iso<=st.dateTo) cls += (iso===st.dateFrom || iso===st.dateTo) ? " sel" : " inrange";
+        html += '<button type="button" class="'+cls+'" data-day="'+iso+'">'+d+(counts[iso] ? '<span class="n">'+counts[iso]+'</span>' : '')+'</button>';
+      }
+      html += '</div><div class="cal-foot"><span>'+(st.dateFrom ? esc(rangeLabel(st.dateFrom, st.dateTo)) : "Kunni tanlang")+'</span><span><button type="button" class="btn sm ghost" data-cal-clear="1">Tozalash</button> <button type="button" class="btn sm primary" data-cal-done="1">Tayyor</button></span></div>';
+      pop.innerHTML = html;
+    }
+    if(pop && calBtn){
+      calBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(!pop.hidden){ pop.hidden = true; return; }
+        document.querySelectorAll(".cal-pop").forEach(function(p){ p.hidden = true; });
+        var st = getSt(), base = st.dateFrom ? new Date(st.dateFrom+"T00:00:00") : new Date();
+        calView[pid] = {y: base.getFullYear(), m: base.getMonth(), pending: false};
+        renderCal(); pop.hidden = false;
+      });
+      pop.addEventListener("click", function(e){
+        e.stopPropagation();
+        var v = calView[pid], st = getSt();
+        var nav = e.target.closest("[data-cal-nav]"), day = e.target.closest("[data-day]");
+        if(nav){ v.m += +nav.getAttribute("data-cal-nav"); if(v.m<0){ v.m = 11; v.y--; } if(v.m>11){ v.m = 0; v.y++; } renderCal(); return; }
+        if(e.target.closest("[data-cal-clear]")){ st.dateFrom = ""; st.dateTo = ""; v.pending = false; sync(); onChange(); renderCal(); return; }
+        if(e.target.closest("[data-cal-done]")){ pop.hidden = true; return; }
+        if(day){
+          var iso = day.getAttribute("data-day");
+          if(!v.pending){ st.dateFrom = iso; st.dateTo = iso; v.pending = true; }           // first click: that single day
+          else { var a = st.dateFrom; st.dateFrom = iso<a ? iso : a; st.dateTo = iso<a ? a : iso; v.pending = false; }   // second click: the period
+          sync(); onChange(); renderCal();
+        }
+      });
+      document.addEventListener("click", function(e){ if(!pop.hidden && !e.target.closest("#"+pid+"Row")) pop.hidden = true; });
+    }
+    dateBarSync[pid] = function(){ sync(); if(pop && !pop.hidden && calView[pid]) renderCal(); };
     sync();
   }
 
@@ -2689,7 +2749,11 @@ function doGet(e) {
         renderSection(brand);
       });
     }
-    bindDateBar('date-'+brand, function(){ return state.sec[brand]; }, function(){ renderSection(brand); });
+    bindDateBar('date-'+brand, function(){ return state.sec[brand]; }, function(){ renderSection(brand); }, function(){
+      var st = state.sec[brand], key = st.dateBy==="sell" ? "sellDate" : "buyDate", base = brand==="all" ? state.phones : state.phones.filter(TYPE_TESTS[brand]), c = {};
+      base.forEach(function(p){ var d = p[key]; if(d) c[d] = (c[d]||0)+1; });
+      return c;
+    });
     var typeRow = document.getElementById("typeChips-"+brand);
     if(typeRow){
       typeRow.addEventListener("click", function(e){
@@ -4619,7 +4683,11 @@ function doGet(e) {
   VIRTUAL_BRANDS.forEach(bindSection);
   populateIphoneModels(null);
   document.getElementById("finDateBar").innerHTML = dateBarHTML("finDate", false);
-  bindDateBar("finDate", function(){ return state.fin; }, function(){ renderFinance(); });
+  bindDateBar("finDate", function(){ return state.fin; }, function(){ renderFinance(); }, function(){
+    var c = {}, src = (state.financeView && state.financeView.mode==="month" && state.financeView.records) ? state.financeView.records : state.phones;
+    src.forEach(function(p){ if(p.buyDate) c[p.buyDate] = (c[p.buyDate]||0)+1; if(p.sellDate && p.status==="sold") c[p.sellDate] = (c[p.sellDate]||0)+1; });
+    return c;
+  });
   hardenInputs();
 
   initFirebase();
