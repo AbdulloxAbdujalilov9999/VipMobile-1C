@@ -1,7 +1,8 @@
 /**
  * VipMobile -> Google Sheet sync endpoint.
  *
- * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa | O'chirilgan
+ * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa | Aksessuar | O'chirilgan
+ *   Aksessuar - everything that is not a phone: MacBook, planshet, soat, naushnik ...
  *   Barcha  - every phone (grouped iPhone, then Samsung, then Boshqa)
  *   iPhone / Samsung / Boshqa - one per brand, USED PHONES ONLY
  *   Yangi   - every phone marked NEW (any brand) - new phones are NOT repeated in the brand tabs
@@ -27,14 +28,16 @@
 var SHEET_DEFS = [
   { key: 'iphone',  name: 'iPhone',  color: '#2A3B8F' },
   { key: 'samsung', name: 'Samsung', color: '#96682B' },
-  { key: 'other',   name: 'Boshqa',  color: '#3F4A5A' }
+  { key: 'other',   name: 'Boshqa',  color: '#3F4A5A' },
+  { key: 'gadget',  name: 'Aksessuar', color: '#2F7D6B' }      // MacBook, planshet, soat, naushnik ... (not phones)
 ];
 // Derived tabs: rewritten from the records above on every sync.
 var ALL_TAB = { key: 'all', name: 'Barcha', color: '#2F6B4F' };
 var NEW_TAB = { key: 'new', name: 'Yangi',  color: '#7A3E8E' };
 var OLD_ALL_TAB_NAMES = ['Band', 'Telefonlar']; // earlier name of the combined tab; renamed in place so nothing is lost
-var TAB_ORDER = ['Barcha', 'iPhone', 'Samsung', 'Yangi', 'Boshqa', "O'chirilgan"];
-function allTabs_() { return [ALL_TAB, SHEET_DEFS[0], SHEET_DEFS[1], NEW_TAB, SHEET_DEFS[2]]; }
+var TAB_ORDER = ['Barcha', 'iPhone', 'Samsung', 'Yangi', 'Boshqa', 'Aksessuar', "O'chirilgan"];
+function allTabs_() { return [ALL_TAB, SHEET_DEFS[0], SHEET_DEFS[1], NEW_TAB, SHEET_DEFS[2], SHEET_DEFS[3]]; }
+function brandFromCell_(c) { return (c === 'iphone' || c === 'samsung' || c === 'gadget') ? c : 'other'; }
 var tabsCreated_ = false;
 
 // Column C onward - what the user actually sees. A (ID) and B (Status) are hidden bookkeeping.
@@ -400,15 +403,15 @@ var PARTY_FNS = {
 /** Barcha / Yangi hold several brands: iPhone models first (newest first), then Samsung, then the rest. */
 var MIXED_FNS = {
   party: function (it) {
-    var b = it.brand === 'iphone' || it.brand === 'samsung' ? it.brand : 'other';
-    var p = b === 'iphone' ? iphoneParty_(it.model) : (b === 'samsung' ? samsungGenAndParty_(it.model).party : 'Boshqa');
+    var b = (it.brand === 'iphone' || it.brand === 'samsung' || it.brand === 'gadget') ? it.brand : 'other';
+    var p = b === 'iphone' ? iphoneParty_(it.model) : (b === 'samsung' ? samsungGenAndParty_(it.model).party : (b === 'gadget' ? 'Aksessuar' : 'Boshqa'));
     return b + '|' + p;
   },
   sortKey: function (key) {
     var i = key.indexOf('|'), b = key.slice(0, i), p = key.slice(i + 1), k = 0;
     if (b === 'iphone') k = iphonePartySortKey_(p);
     else if (b === 'samsung') { var g = samsungGenAndParty_(p).gen; k = samsungGenSortKey_(g) * 10 + samsungPartySortKey_(p, g); }
-    return { iphone: 0, samsung: 1, other: 2 }[b] * 1000000 + 100000 + k;
+    return { iphone: 0, samsung: 1, other: 2, gadget: 3 }[b] * 1000000 + 100000 + k;
   }
 };
 
@@ -431,7 +434,7 @@ function applyChangeAndRewriteAll_(mutate) {
   readRows_(trashSheet, TRASH_HEADERS.length).forEach(function (row) {
     if (row[0]) {
       var tr = recordFromRow_(row);
-      tr.brand = (tr.brandCell === 'iphone' || tr.brandCell === 'samsung') ? tr.brandCell : 'other';
+      tr.brand = brandFromCell_(tr.brandCell);
       delete tr.brandCell;
       tr.deletedAt = sv_(row[17]); tr.deletedReason = sv_(row[18]);
       trashed[tr.id] = tr;
@@ -442,7 +445,7 @@ function applyChangeAndRewriteAll_(mutate) {
   SHEET_DEFS.concat([NEW_TAB]).forEach(function (def) {      // new phones live in Yangi, used ones in their brand tab
     readSheetRecords_(sheets[def.name]).forEach(function (rec) {
       if (master[rec.id]) return;
-      rec.brand = def.key === 'new' ? (rec.brandCell === 'iphone' || rec.brandCell === 'samsung' ? rec.brandCell : 'other') : def.key;
+      rec.brand = def.key === 'new' ? brandFromCell_(rec.brandCell) : def.key;
       delete rec.brandCell;
       master[rec.id] = rec;
     });
@@ -461,7 +464,7 @@ function applyChangeAndRewriteAll_(mutate) {
     }
   });
 
-  var buckets = { iphone: [], samsung: [], other: [] };
+  var buckets = { iphone: [], samsung: [], other: [], gadget: [] };
   var everything = [], fresh = [];
   Object.keys(master).forEach(function (id) {
     var rec = master[id];
@@ -631,7 +634,7 @@ function exportAllData_(ss) {
       };
       if (id) {
         if (isBrandTab || def.key === 'new') {              // Barcha only repeats the others
-          if (def.key === 'new') rec.brand = (row[16] === 'iphone' || row[16] === 'samsung') ? row[16] : 'other';
+          if (def.key === 'new') rec.brand = brandFromCell_(row[16]);
           if (!seenIds[id]) { seenIds[id] = true; records.push(rec); }
         }
       }
