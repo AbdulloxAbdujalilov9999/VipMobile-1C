@@ -1614,8 +1614,26 @@ function exportAllData_(ss) {
       else { rec.sheetName = def.name; rec.sheetRow = idx + 2; unidentified.push(rec); }
     });
   });
-  var out = { ok: true, records: records, unidentified: unidentified, exportedAt: new Date().toISOString() };
+  var out = { ok: true, records: records, unidentified: unidentified, trashed: readTrashForExport_(ss), exportedAt: new Date().toISOString() };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+/** Every phone listed in the "O'chirilgan" tab (so the platform can keep its own trash in step with it). */
+function readTrashForExport_(ss) {
+  var out = [];
+  try {
+    var sh = ss.getSheetByName(TRASH_TAB.name);
+    if (!sh) return out;
+    readRows_(sh, TRASH_HEADERS.length).forEach(function (row) {
+      if (!row[0]) return;
+      var rec = recordFromRow_(row);
+      rec.brand = brandFromCell_(rec.brandCell);
+      delete rec.brandCell;
+      rec.deletedAt = sv_(row[17]);
+      rec.deletedReason = sv_(row[18]);
+      out.push(rec);
+    });
+  } catch (e) { Logger.log('readTrashForExport_ failed: ' + e); }
+  return out;
 }
 
 /** One script can read ANY of your monthly Sheets: the app passes the month's Sheet ID.
@@ -2137,6 +2155,42 @@ function doGet(e) {
   }
   function sheetIdFromUrl(u){ var m = String(u||"").match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/); return m ? m[1] : ""; }
 
+  /* ---- the platform's Axlat qutisi and the Sheet's "O'chirilgan" tab are kept in step, both ways ---- */
+  var trashSeenOnce = {};      // ids that were in the Sheet's deleted tab but unknown here at the previous check
+  var purgedHere = {};         // ids deleted for good in this browser
+  async function syncTrashWithSheet(json){
+    if(!json || json.trashed===undefined || !phonesCol) return;           // old script: it has no deleted tab
+    var inSheet = {};
+    json.trashed.forEach(function(r){ inSheet[r.id] = r; });
+    /* 1) deleted here but not listed in the Sheet yet (deleted before the script was updated, or a write failed): send them */
+    var missing = (state.trash||[]).filter(function(p){ return !inSheet[p.id]; });
+    if(missing.length){
+      queueSheet({action:"trash", rows: missing.map(function(p){ return {id:p.id, data:enrichForSheet(p), deletedAt:p.deletedAt||new Date().toISOString(), reason:p.deletedReason||"O'chirildi"}; })}, function(){});
+    }
+    /* 2) listed in the Sheet's deleted tab but unknown here: put them back into the platform's trash (needs to be seen twice in a row, so a phone that is being deleted right now is not resurrected) */
+    var known = {};
+    state.phones.concat(state.trash||[]).forEach(function(p){ known[p.id] = true; });
+    var nowSeen = {}, recover = [];
+    json.trashed.forEach(function(r){
+      if(known[r.id] || purgedHere[r.id] || /Butunlay/i.test(r.deletedReason||"")) return;
+      nowSeen[r.id] = true;
+      if(trashSeenOnce[r.id]) recover.push(r);
+    });
+    trashSeenOnce = nowSeen;
+    if(recover.length){
+      var now = new Date().toISOString();
+      for(var i=0;i<recover.length;i+=400){
+        var b = db.batch();
+        recover.slice(i,i+400).forEach(function(r, j){
+          var d = phoneFromSheetRow(r, Date.now()+i+j);
+          d.deleted = true; d.deletedAt = r.deletedAt || now; d.deletedReason = r.deletedReason || "Sheetdan tiklandi"; d.updatedAt = now;
+          b.set(phonesCol.doc(r.id), d);
+        });
+        await b.commit();
+      }
+      toast(recover.length+" ta o'chirilgan telefon Sheetdan axlat qutisiga qaytarildi");
+    }
+  }
   var sheetCheckInFlight = false;
   var sheetSeenPending = {};     // typed-in rows seen at the previous check (occurrence key -> true)
   var sheetAdoptedRows = {};     // occurrence key -> {rec, tries}: a failed "adopt" is retried, never duplicated
@@ -2184,6 +2238,7 @@ function doGet(e) {
     if(btn && !silent){ btn.disabled = true; setBtnLabel(btn, "Tekshirilmoqda…"); }
     try{
       var json = await fetchSheetExport(activeSheetSyncUrl());
+      await syncTrashWithSheet(json);
       var rows = json.unidentified || [];
       var nowSeen = {}, occ = {}, ready = [], waiting = 0;
       rows.forEach(function(r){
@@ -3747,7 +3802,7 @@ function doGet(e) {
       await runCleanNotes();
     } else if(confirmAction==="purge-phone"){
       if(!state.deleteId || !phonesCol) return;
-      try{ var purgeId = state.deleteId; await phonesCol.doc(purgeId).delete(); queueSheet({action:"trashPurged", ids:[purgeId]}, function(){}); toast("Butunlay o'chirildi (Sheetdagi \"O'chirilgan\" varag'ida belgi bilan qoladi)"); }
+      try{ var purgeId = state.deleteId; purgedHere[purgeId] = true; await phonesCol.doc(purgeId).delete(); queueSheet({action:"trashPurged", ids:[purgeId]}, function(){}); toast("Butunlay o'chirildi (Sheetdagi \"O'chirilgan\" varag'ida belgi bilan qoladi)"); }
       catch(e){ toast("O'chirishda xatolik: "+(e.code||e.message), true); }
       closeConfirm();
     } else if(confirmAction==="empty-trash"){
@@ -3756,6 +3811,7 @@ function doGet(e) {
         for(var i=0;i<ids.length;i+=400){
           var b = db.batch(); ids.slice(i,i+400).forEach(function(id){ b.delete(phonesCol.doc(id)); }); await b.commit();
         }
+        ids.forEach(function(id){ purgedHere[id] = true; });
         queueSheet({action:"trashPurged", ids:ids}, function(){});
         toast("Axlat qutisi bo'shatildi ("+ids.length+" ta)");
       }catch(e){ toast("Xatolik: "+(e.code||e.message), true); }

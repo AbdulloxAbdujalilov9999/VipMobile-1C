@@ -642,8 +642,26 @@ function exportAllData_(ss) {
       else { rec.sheetName = def.name; rec.sheetRow = idx + 2; unidentified.push(rec); }
     });
   });
-  var out = { ok: true, records: records, unidentified: unidentified, exportedAt: new Date().toISOString() };
+  var out = { ok: true, records: records, unidentified: unidentified, trashed: readTrashForExport_(ss), exportedAt: new Date().toISOString() };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+/** Every phone listed in the "O'chirilgan" tab (so the platform can keep its own trash in step with it). */
+function readTrashForExport_(ss) {
+  var out = [];
+  try {
+    var sh = ss.getSheetByName(TRASH_TAB.name);
+    if (!sh) return out;
+    readRows_(sh, TRASH_HEADERS.length).forEach(function (row) {
+      if (!row[0]) return;
+      var rec = recordFromRow_(row);
+      rec.brand = brandFromCell_(rec.brandCell);
+      delete rec.brandCell;
+      rec.deletedAt = sv_(row[17]);
+      rec.deletedReason = sv_(row[18]);
+      out.push(rec);
+    });
+  } catch (e) { Logger.log('readTrashForExport_ failed: ' + e); }
+  return out;
 }
 
 /** One script can read ANY of your monthly Sheets: the app passes the month's Sheet ID.
