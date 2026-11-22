@@ -46,6 +46,8 @@
     font-weight:700; font-size:14.5px; padding:11px 12px; border-radius:10px;
     cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:9px; text-align:left; width:100%;
   }
+  .tab-btn svg{ flex:none; }
+  .tab-btn > span:not(.tab-count){ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .tab-btn.active{ color:var(--ink); background:var(--accent-soft); }
   .tab-btn:hover{ color:var(--ink); background:var(--surface-2); }
   .tab-btn.active:hover{ background:var(--accent-soft); }
@@ -461,7 +463,7 @@
       <button class="tab-btn" data-tab="samsung"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="20" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg> <span>Samsung</span> <span class="tab-count" id="count-samsung">0</span></button>
       <button class="tab-btn" data-tab="new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.5 6.5L21 11l-6.5 2.5L12 20l-2.5-6.5L3 11l6.5-2.5L12 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Yangi Telefonlar</span> <span class="tab-count" id="count-new">0</span></button>
       <button class="tab-btn" data-tab="other"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 8l9-5 9 5-9 5-9-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 8v9l9 5 9-5V8M12 13v9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Boshqa</span> <span class="tab-count" id="count-other">0</span></button>
-      <button class="tab-btn" data-tab="gadget"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="2"/><path d="M2 19h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> <span>Noutbuk va aksessuar</span> <span class="tab-count" id="count-gadget">0</span></button>
+      <button class="tab-btn" data-tab="gadget"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="13" height="9.5" rx="1.6" stroke="currentColor" stroke-width="2"/><path d="M1.5 18.5h17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="18.6" y="8.5" width="3.6" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.8"/></svg> <span>Aksesuarlar</span> <span class="tab-count" id="count-gadget">0</span></button>
       <div class="nav-divider"></div>
       <button class="tab-btn" data-tab="trash"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span>Axlat qutisi</span> <span class="tab-count" id="count-trash">0</span></button>
       <button class="tab-btn" data-tab="finance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2"/></svg> <span>Moliya</span></button>
@@ -576,7 +578,7 @@
                       <button data-brand="iphone">Faqat iPhone</button>
                       <button data-brand="samsung">Faqat Samsung</button>
                       <button data-brand="new">Faqat Yangi telefonlar</button>
-                      <button data-brand="gadget">Faqat noutbuk va aksessuar</button>
+                      <button data-brand="gadget">Faqat aksesuarlar</button>
                       <button data-brand="other">Faqat Boshqa</button>
                       <button data-brand="all">Barcha telefonlar</button>
                     </div>
@@ -667,7 +669,7 @@
       <div class="form-section-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="20" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg> Telefon haqida</div>
       <div class="form-grid">
         <div class="field"><label>Turi</label>
-          <select id="f_brand"><option value="iphone">iPhone</option><option value="samsung">Samsung</option><option value="other">Boshqa</option><option value="gadget">Noutbuk / aksessuar</option></select>
+          <select id="f_brand"><option value="iphone">iPhone</option><option value="samsung">Samsung</option><option value="other">Boshqa</option><option value="gadget">Aksesuarlar</option></select>
         </div>
         <div class="field"><label>Hozirgi holati</label>
           <select id="f_status">
@@ -911,7 +913,7 @@
       <button class="chip" data-brand="iphone">iPhone</button>
       <button class="chip" data-brand="samsung">Samsung</button>
       <button class="chip" data-brand="other">Boshqa</button>
-      <button class="chip" data-brand="gadget">Aksessuar</button>
+      <button class="chip" data-brand="gadget">Aksesuarlar</button>
     </div>
     <div class="sort-bar" id="soldCondBar">
       <span class="sort-label">Holati:</span>
@@ -971,8 +973,8 @@
   var SHEETSYNC_GS_SOURCE = String.raw`/**
  * VipMobile -> Google Sheet sync endpoint.
  *
- * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa | Aksessuar | O'chirilgan
- *   Aksessuar - everything that is not a phone: MacBook, planshet, soat, naushnik ...
+ * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa | Aksesuarlar | O'chirilgan
+ *   Aksesuarlar - everything that is not a phone: MacBook, planshet, soat, naushnik ...
  *   Barcha  - every phone (grouped iPhone, then Samsung, then Boshqa)
  *   iPhone / Samsung / Boshqa - one per brand, USED PHONES ONLY
  *   Yangi   - every phone marked NEW (any brand) - new phones are NOT repeated in the brand tabs
@@ -999,13 +1001,13 @@ var SHEET_DEFS = [
   { key: 'iphone',  name: 'iPhone',  color: '#2A3B8F' },
   { key: 'samsung', name: 'Samsung', color: '#96682B' },
   { key: 'other',   name: 'Boshqa',  color: '#3F4A5A' },
-  { key: 'gadget',  name: 'Aksessuar', color: '#2F7D6B' }      // MacBook, planshet, soat, naushnik ... (not phones)
+  { key: 'gadget',  name: 'Aksesuarlar', color: '#2F7D6B' }      // MacBook, planshet, soat, naushnik ... (not phones)
 ];
 // Derived tabs: rewritten from the records above on every sync.
 var ALL_TAB = { key: 'all', name: 'Barcha', color: '#2F6B4F' };
 var NEW_TAB = { key: 'new', name: 'Yangi',  color: '#7A3E8E' };
-var OLD_ALL_TAB_NAMES = ['Band', 'Telefonlar']; // earlier name of the combined tab; renamed in place so nothing is lost
-var TAB_ORDER = ['Barcha', 'iPhone', 'Samsung', 'Yangi', 'Boshqa', 'Aksessuar', "O'chirilgan"];
+var OLD_TAB_NAMES = { 'Barcha': ['Band', 'Telefonlar'], 'Aksesuarlar': ['Aksessuar'] }; // earlier names; such a tab is renamed in place so nothing is lost
+var TAB_ORDER = ['Barcha', 'iPhone', 'Samsung', 'Yangi', 'Boshqa', 'Aksesuarlar', "O'chirilgan"];
 function allTabs_() { return [ALL_TAB, SHEET_DEFS[0], SHEET_DEFS[1], NEW_TAB, SHEET_DEFS[2], SHEET_DEFS[3]]; }
 function brandFromCell_(c) { return (c === 'iphone' || c === 'samsung' || c === 'gadget') ? c : 'other'; }
 var tabsCreated_ = false;
@@ -1126,9 +1128,10 @@ function samsungPartySortKey_(party, gen) {
 function getOrCreateSheet_(name, color) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
-  if (!sh && name === ALL_TAB.name) {
-    for (var i = 0; i < OLD_ALL_TAB_NAMES.length; i++) {
-      var old = ss.getSheetByName(OLD_ALL_TAB_NAMES[i]);
+  var olds = OLD_TAB_NAMES[name] || [];
+  if (!sh) {
+    for (var i = 0; i < olds.length; i++) {
+      var old = ss.getSheetByName(olds[i]);
       if (old) {
         old.setName(name);
         try { formatSheet_(old, color); } catch (e) { Logger.log('format ' + name + ' failed: ' + e); }
@@ -1374,7 +1377,7 @@ var PARTY_FNS = {
 var MIXED_FNS = {
   party: function (it) {
     var b = (it.brand === 'iphone' || it.brand === 'samsung' || it.brand === 'gadget') ? it.brand : 'other';
-    var p = b === 'iphone' ? iphoneParty_(it.model) : (b === 'samsung' ? samsungGenAndParty_(it.model).party : (b === 'gadget' ? 'Aksessuar' : 'Boshqa'));
+    var p = b === 'iphone' ? iphoneParty_(it.model) : (b === 'samsung' ? samsungGenAndParty_(it.model).party : (b === 'gadget' ? 'Aksesuarlar' : 'Boshqa'));
     return b + '|' + p;
   },
   sortKey: function (key) {
@@ -1654,7 +1657,8 @@ function doGet(e) {
 }
 `;
 
-  var BRAND_LABEL = {iphone:"iPhone", samsung:"Samsung", other:"Boshqa", gadget:"Aksessuar"};
+  var GADGET_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="13" height="9.5" rx="1.6" stroke="currentColor" stroke-width="2"/><path d="M1.5 18.5h17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="18.6" y="8.5" width="3.6" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.8"/></svg>';
+  var BRAND_LABEL = {iphone:"iPhone", samsung:"Samsung", other:"Boshqa", gadget:"Aksesuarlar"};
 
   var state = {
     phones: [],
@@ -1927,7 +1931,7 @@ function doGet(e) {
     gadget:  function(p){ return p.brand==="gadget"  && !isNewPhone(p); },
     "new":   function(p){ return isNewPhone(p); }
   };
-  var TYPE_LABELS = {iphone:"iPhone", samsung:"Samsung", other:"Boshqa", gadget:"Aksessuar", "new":"Yangi"};
+  var TYPE_LABELS = {iphone:"iPhone", samsung:"Samsung", other:"Boshqa", gadget:"Aksesuarlar", "new":"Yangi"};
   function profitOf(p){
     if(p.sellPrice==null || p.buyPrice==null) return null;
     return p.sellPrice - p.buyPrice;
@@ -2429,7 +2433,7 @@ function doGet(e) {
           '<button class="chip" data-type="iphone">iPhone</button>'+
           '<button class="chip" data-type="samsung">Samsung</button>'+
           '<button class="chip" data-type="other">Boshqa</button>'+
-          '<button class="chip" data-type="gadget">Aksessuar</button>'+
+          '<button class="chip" data-type="gadget">Aksesuarlar</button>'+
         '</div>';
     var statusChips =
         '<div class="chip-row" id="chips-'+brand+'">'+
@@ -2715,11 +2719,11 @@ function doGet(e) {
       var partyFn = partyFnFor(brand), partySortFn = partySortFor(brand);
       var mixedKeys = {};
       if(brand==="all" || brand==="new"){
-        var BR_ORDER = {iphone:0, samsung:1, other:2, gadget:3}, BR_NAME = {iphone:"iPhone", samsung:"Samsung", other:"Boshqa", gadget:"Aksessuar"};
+        var BR_ORDER = {iphone:0, samsung:1, other:2, gadget:3}, BR_NAME = {iphone:"iPhone", samsung:"Samsung", other:"Boshqa", gadget:"Aksesuarlar"};
         partyFn = function(model, p){
           var b = (p && BR_ORDER[p.brand]!==undefined) ? p.brand : "other";
           var party = b==="iphone" ? iphoneParty(model) : (b==="samsung" ? samsungGenAndParty(model).party : "");
-          var label = b==="other" ? "Boshqa brendlar" : (b==="gadget" ? "Noutbuk va aksessuar" : BR_NAME[b]) + (party && party!=="Boshqa" ? " · "+party : " · aniqlanmagan model");
+          var label = b==="other" ? "Boshqa brendlar" : (b==="gadget" ? "Aksesuarlar" : BR_NAME[b]) + (party && party!=="Boshqa" ? " · "+party : " · aniqlanmagan model");
           var key;
           if(b==="iphone") key = partySortKey(party);
           else if(b==="samsung"){ var g = samsungGenAndParty(party).gen; key = samsungGenSortKey(g)*10 + samsungPartySortKey(party, g); }
@@ -2849,9 +2853,9 @@ function doGet(e) {
 
     document.getElementById("brandRow").innerHTML = ["iphone","samsung","new","other","gadget"].map(function(b){
       var bl = all.filter(TYPE_TESTS[b]);
-      var nm = b==="new" ? "Yangi Telefonlar" : (b==="gadget" ? "Noutbuk va aksessuar" : BRAND_LABEL[b]);
+      var nm = b==="new" ? "Yangi Telefonlar" : (b==="gadget" ? "Aksesuarlar" : BRAND_LABEL[b]);
       return '<div class="brand-card" data-goto="'+b+'">'+
-        '<div class="brand-icon '+(b==="new"?"other":b)+'">'+(b==="new"?"YA":(b==="gadget"?"AK":BRAND_LABEL[b].slice(0,2).toUpperCase()))+'</div>'+
+        '<div class="brand-icon '+(b==="new"?"other":b)+'">'+(b==="new"?"YA":(b==="gadget"?GADGET_ICON:BRAND_LABEL[b].slice(0,2).toUpperCase()))+'</div>'+
         '<div><div class="brand-card-name">'+nm+'</div>'+
         '<div class="brand-card-meta">'+bl.filter(function(p){return p.status==="stock";}).length+' ta omborda</div></div>'+
         '<div class="brand-card-count"><div class="v">'+bl.length+'</div><div class="l">Jami dona</div></div>'+
@@ -2964,12 +2968,12 @@ function doGet(e) {
       {key:"iphone|used",   brand:"iphone",  cond:"used", label:"iPhone"},
       {key:"samsung|used",  brand:"samsung", cond:"used", label:"Samsung"},
       {key:"other|used",    brand:"other",   cond:"used", label:"Boshqa"},
-      {key:"gadget|used",   brand:"gadget",  cond:"used", label:"Noutbuk / Aksessuar"},
+      {key:"gadget|used",   brand:"gadget",  cond:"used", label:"Aksesuarlar"},
       {key:"all|new",       brand:"all",     cond:"new",  label:"Yangi · hammasi"},
       {key:"iphone|new",    brand:"iphone",  cond:"new",  label:"iPhone Yangi"},
       {key:"samsung|new",   brand:"samsung", cond:"new",  label:"Samsung Yangi"},
       {key:"other|new",     brand:"other",   cond:"new",  label:"Boshqa Yangi"},
-      {key:"gadget|new",    brand:"gadget",  cond:"new",  label:"Aksessuar Yangi"}
+      {key:"gadget|new",    brand:"gadget",  cond:"new",  label:"Aksesuarlar Yangi"}
     ];
     function typeCardHTML(d){
       var test = function(p){ return matchPhone(p, d.brand, d.cond); };
@@ -4269,7 +4273,7 @@ function doGet(e) {
         }
         else if(field==="brand"){
           var bv = String(raw||"").trim().toLowerCase();
-          rec._brand = bv==="iphone" ? "iphone" : (bv==="samsung" ? "samsung" : ((bv==="aksessuar"||bv==="gadget") ? "gadget" : ((bv==="boshqa"||bv==="other") ? "other" : "")));
+          rec._brand = bv==="iphone" ? "iphone" : (bv==="samsung" ? "samsung" : ((bv==="aksessuar"||bv==="aksesuarlar"||bv==="gadget") ? "gadget" : ((bv==="boshqa"||bv==="other") ? "other" : "")));
         }
         else if(field==="newFlag"){
           var nv = String(raw||"").trim().toLowerCase();
@@ -4363,7 +4367,7 @@ function doGet(e) {
           '<span><span class="brandtag iphone">iPhone</span> <b>'+counts.iphone+'</b> ta</span>'+
           '<span><span class="brandtag samsung">Samsung</span> <b>'+counts.samsung+'</b> ta</span>'+
           '<span><span class="brandtag other">Boshqa</span> <b>'+counts.other+'</b> ta</span>'+
-          '<span><span class="brandtag gadget">Aksessuar</span> <b>'+counts.gadget+'</b> ta</span>'+
+          '<span><span class="brandtag gadget">Aksesuarlar</span> <b>'+counts.gadget+'</b> ta</span>'+
         '</div>'+perFile+skipNote;
     }
     document.getElementById("runImportBtn").disabled = records.length===0 || !phonesCol;
@@ -4376,7 +4380,7 @@ function doGet(e) {
       var wb = XLSX.read(new Uint8Array(buffer), {type:"array"});
       var out = [];
       var lowerNames = wb.SheetNames.map(function(n){ return String(n).trim().toLowerCase(); });
-      var hasBrandTabs = lowerNames.some(function(n){ return ["iphone","samsung","yangi","boshqa","aksessuar"].indexOf(n)!==-1; });
+      var hasBrandTabs = lowerNames.some(function(n){ return ["iphone","samsung","yangi","boshqa","aksessuar","aksesuarlar"].indexOf(n)!==-1; });
       wb.SheetNames.forEach(function(sn, si){
         if(hasBrandTabs && (lowerNames[si]==="barcha" || lowerNames[si]==="barchasi")) return;   // that tab only repeats the others
         var ws = wb.Sheets[sn];

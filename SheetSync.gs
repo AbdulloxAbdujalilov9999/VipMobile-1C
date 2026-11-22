@@ -1,8 +1,8 @@
 /**
  * VipMobile -> Google Sheet sync endpoint.
  *
- * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa | Aksessuar | O'chirilgan
- *   Aksessuar - everything that is not a phone: MacBook, planshet, soat, naushnik ...
+ * Tabs, left to right:  Barcha | iPhone | Samsung | Yangi | Boshqa | Aksesuarlar | O'chirilgan
+ *   Aksesuarlar - everything that is not a phone: MacBook, planshet, soat, naushnik ...
  *   Barcha  - every phone (grouped iPhone, then Samsung, then Boshqa)
  *   iPhone / Samsung / Boshqa - one per brand, USED PHONES ONLY
  *   Yangi   - every phone marked NEW (any brand) - new phones are NOT repeated in the brand tabs
@@ -29,13 +29,13 @@ var SHEET_DEFS = [
   { key: 'iphone',  name: 'iPhone',  color: '#2A3B8F' },
   { key: 'samsung', name: 'Samsung', color: '#96682B' },
   { key: 'other',   name: 'Boshqa',  color: '#3F4A5A' },
-  { key: 'gadget',  name: 'Aksessuar', color: '#2F7D6B' }      // MacBook, planshet, soat, naushnik ... (not phones)
+  { key: 'gadget',  name: 'Aksesuarlar', color: '#2F7D6B' }      // MacBook, planshet, soat, naushnik ... (not phones)
 ];
 // Derived tabs: rewritten from the records above on every sync.
 var ALL_TAB = { key: 'all', name: 'Barcha', color: '#2F6B4F' };
 var NEW_TAB = { key: 'new', name: 'Yangi',  color: '#7A3E8E' };
-var OLD_ALL_TAB_NAMES = ['Band', 'Telefonlar']; // earlier name of the combined tab; renamed in place so nothing is lost
-var TAB_ORDER = ['Barcha', 'iPhone', 'Samsung', 'Yangi', 'Boshqa', 'Aksessuar', "O'chirilgan"];
+var OLD_TAB_NAMES = { 'Barcha': ['Band', 'Telefonlar'], 'Aksesuarlar': ['Aksessuar'] }; // earlier names; such a tab is renamed in place so nothing is lost
+var TAB_ORDER = ['Barcha', 'iPhone', 'Samsung', 'Yangi', 'Boshqa', 'Aksesuarlar', "O'chirilgan"];
 function allTabs_() { return [ALL_TAB, SHEET_DEFS[0], SHEET_DEFS[1], NEW_TAB, SHEET_DEFS[2], SHEET_DEFS[3]]; }
 function brandFromCell_(c) { return (c === 'iphone' || c === 'samsung' || c === 'gadget') ? c : 'other'; }
 var tabsCreated_ = false;
@@ -156,9 +156,10 @@ function samsungPartySortKey_(party, gen) {
 function getOrCreateSheet_(name, color) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
-  if (!sh && name === ALL_TAB.name) {
-    for (var i = 0; i < OLD_ALL_TAB_NAMES.length; i++) {
-      var old = ss.getSheetByName(OLD_ALL_TAB_NAMES[i]);
+  var olds = OLD_TAB_NAMES[name] || [];
+  if (!sh) {
+    for (var i = 0; i < olds.length; i++) {
+      var old = ss.getSheetByName(olds[i]);
       if (old) {
         old.setName(name);
         try { formatSheet_(old, color); } catch (e) { Logger.log('format ' + name + ' failed: ' + e); }
@@ -404,7 +405,7 @@ var PARTY_FNS = {
 var MIXED_FNS = {
   party: function (it) {
     var b = (it.brand === 'iphone' || it.brand === 'samsung' || it.brand === 'gadget') ? it.brand : 'other';
-    var p = b === 'iphone' ? iphoneParty_(it.model) : (b === 'samsung' ? samsungGenAndParty_(it.model).party : (b === 'gadget' ? 'Aksessuar' : 'Boshqa'));
+    var p = b === 'iphone' ? iphoneParty_(it.model) : (b === 'samsung' ? samsungGenAndParty_(it.model).party : (b === 'gadget' ? 'Aksesuarlar' : 'Boshqa'));
     return b + '|' + p;
   },
   sortKey: function (key) {
