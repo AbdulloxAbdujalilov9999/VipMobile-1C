@@ -170,6 +170,28 @@
   .period-summary .ps-title{ font-weight:800; color:var(--ink); width:100%; }
   .period-summary .ps-item{ font-size:13.5px; color:var(--ink-dim); }
   .period-summary .ps-item b{ color:var(--ink); font-family:'IBM Plex Mono',monospace; }
+  .tab-count.alert{ background:var(--danger); color:#fff; }
+  .tab-btn.active .tab-count.alert{ background:var(--danger); color:#fff; }
+  .remind-box{ margin-top:12px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); }
+  .remind-box[data-on="1"]{ border-color:var(--gold); }
+  .remind-hint{ font-size:12.5px; color:var(--gold); margin-top:8px; line-height:1.5; word-break:break-word; }
+  #f_note.need{ border-color:var(--danger) !important; box-shadow:0 0 0 2px rgba(224,85,85,.25); }
+  .remind-banner{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:rgba(224,85,85,.12); border:1px solid var(--danger); border-radius:12px; padding:12px 16px; margin-bottom:16px; color:var(--ink); font-weight:700; }
+  .remind-banner[hidden]{ display:none; }
+  .rstat{ display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:800; margin-top:4px; }
+  .rstat.due{ background:rgba(224,85,85,.18); color:var(--danger); }
+  .rstat.today{ background:var(--gold-soft); color:var(--gold); }
+  .rstat.upcoming{ background:var(--accent-soft); color:var(--accent); }
+  .rstat.done{ background:rgba(76,176,143,.16); color:#4cb08f; }
+  .remind-item{ padding:10px 12px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; background:var(--surface-2); }
+  .cell-note-text{ white-space:pre-wrap; word-break:break-word; font-size:13px; line-height:1.5; color:var(--ink); }
+  table.store-table{ width:100%; }
+  table.store-table td.num, table.store-table th.num{ text-align:right; font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
+  table.store-table tr.total td{ font-weight:800; border-top:2px solid var(--border); background:var(--surface-2); }
+  #storeListTable td.num, #storeListTable th.num{ text-align:right; font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
+  #storeListTable tr.total td{ font-weight:800; border-top:2px solid var(--border); background:var(--surface-2); }
+  .holders{ display:flex; flex-wrap:wrap; gap:6px 14px; margin:0 0 12px; font-size:12.5px; color:var(--ink-dim); }
+  .holders b{ color:var(--ink); font-family:'IBM Plex Mono',monospace; font-weight:600; }
   .return-note{ background:var(--gold-soft); color:var(--gold); border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.5; margin-bottom:12px; }
   .brand-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin-bottom:22px; }
   @media (max-width:1100px){ .brand-row{ grid-template-columns:repeat(2,1fr); } }
@@ -464,6 +486,7 @@
       <button class="tab-btn" data-tab="new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.5 6.5L21 11l-6.5 2.5L12 20l-2.5-6.5L3 11l6.5-2.5L12 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Yangi Telefonlar</span> <span class="tab-count" id="count-new">0</span></button>
       <button class="tab-btn" data-tab="other"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 8l9-5 9 5-9 5-9-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 8v9l9 5 9-5V8M12 13v9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> <span>Boshqa</span> <span class="tab-count" id="count-other">0</span></button>
       <button class="tab-btn" data-tab="gadget"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="13" height="9.5" rx="1.6" stroke="currentColor" stroke-width="2"/><path d="M1.5 18.5h17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="18.6" y="8.5" width="3.6" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.8"/></svg> <span>Aksesuarlar</span> <span class="tab-count" id="count-gadget">0</span></button>
+      <button class="tab-btn" data-tab="reminders"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 17h12l-1.5-2V11a4.5 4.5 0 0 0-9 0v4L6 17z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> <span>Bildirishnomalar</span> <span class="tab-count" id="count-reminders">0</span></button>
       <div class="nav-divider"></div>
       <button class="tab-btn" data-tab="trash"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span>Axlat qutisi</span> <span class="tab-count" id="count-trash">0</span></button>
       <button class="tab-btn" data-tab="finance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" stroke-width="2"/></svg> <span>Moliya</span></button>
@@ -486,6 +509,7 @@
 
       <section id="tab-dashboard" class="active">
         <div id="setupBanner" class="setup-banner" hidden></div>
+        <div id="remindBanner" class="remind-banner" hidden></div>
         <div class="kpi-grid" id="kpiGrid"></div>
         <div class="brand-row" id="brandRow"></div>
         <div class="panel-grid">
@@ -515,6 +539,32 @@
       <section id="tab-gadget"><div id="shell-gadget"></div></section>
       <section id="tab-all"><div id="shell-all"></div></section>
       <section id="tab-new"><div id="shell-new"></div></section>
+
+      <section id="tab-reminders">
+        <div class="page-intro">
+          <h1>Bildirishnomalar</h1>
+          <p>Telefonni qo'shayotganda yoki tahrirlayotganda <b>"Bildirishnoma qo'shish"</b>ni belgilab sana tanlasangiz, o'sha kuni shu yerda va ekranda eslatma chiqadi. Bu yerda <b>faqat bildirishnoma qo'yilgan</b> telefonlar ko'rinadi, boshqa izohlar emas.</p>
+        </div>
+        <div class="toolbar">
+          <div class="chip-row" id="remindChips">
+            <button class="chip active" data-rf="all">Hammasi</button>
+            <button class="chip" data-rf="due">Vaqti kelgan</button>
+            <button class="chip" data-rf="upcoming">Kelgusi</button>
+            <button class="chip" data-rf="done">Bajarilgan</button>
+          </div>
+          <button class="btn" id="remindNotifyBtn" hidden>Brauzer ogohlantirishini yoqish</button>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table class="trash-table" id="table-reminders">
+              <thead><tr>
+                <th class="rownum">#</th><th>Vaqti</th><th>Telefon</th><th>Izoh</th><th></th>
+              </tr></thead>
+              <tbody id="tbody-reminders"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       <section id="tab-trash">
         <div class="page-intro">
@@ -553,6 +603,17 @@
             <h1>Moliyaviy hisobot</h1>
           </div>
           <div id="monthViewBanner" hidden class="setup-banner" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;"></div>
+          <div class="type-head">Do'konda qancha pul bor <span style="text-transform:none; letter-spacing:0; font-weight:600;">— sotilmagan va Band telefonlar (hozirgi holat, sana tanlashga bog'liq emas). Kartani bosing: ro'yxat</span></div>
+          <div class="kpi-grid" id="finStoreGrid"></div>
+          <div class="card" style="margin-bottom:22px">
+            <h3>Tur bo'yicha <span class="hint">sotib olingan narx hisobida</span></h3>
+            <div class="table-scroll">
+              <table class="store-table" id="finStoreTable">
+                <thead><tr><th>Tur</th><th class="num">Do'konda</th><th class="num">Band</th><th class="num">Jami</th></tr></thead>
+                <tbody id="finStoreTbody"></tbody>
+              </table>
+            </div>
+          </div>
           <div id="finDateBar"></div>
           <div id="finPeriodSummary" style="margin-top:12px"></div>
           <div class="kpi-grid" id="finKpiGrid"></div>
@@ -732,7 +793,21 @@
         <div class="field"><label>Telefon raqami</label><input type="text" id="f_sourcePhone" placeholder="90-123-4567"></div>
         <div class="field"><label>Qachon olindi</label><input type="date" id="f_buyDate"></div>
         <div class="field"><label>Qancha pulga olindi ($)</label><input type="number" step="1" id="f_buyPrice" class="mono" placeholder="0"></div>
-        <div class="field full"><label>Kichik izoh (ixtiyoriy)</label><input type="text" id="f_note" placeholder="Masalan: kreditga olindi, do'stdan"></div>
+        <div class="field full"><label id="f_noteLabel">Kichik izoh (ixtiyoriy)</label><input type="text" id="f_note" placeholder="Masalan: kreditga olindi, do'stdan"></div>
+      </div>
+      <div class="remind-box" id="remindBox" data-on="0">
+        <div style="display:flex; align-items:center; gap:9px;">
+          <input type="checkbox" id="f_remindOn" style="width:17px; height:17px; accent-color:var(--accent); cursor:pointer; flex:none;">
+          <label style="margin:0; font-weight:600; color:var(--ink); cursor:pointer;" for="f_remindOn">Bildirishnoma qo'shish</label>
+        </div>
+        <div id="remindOptions" hidden>
+          <div class="form-grid" style="margin-top:10px">
+            <div class="field"><label>Qaysi kuni eslatilsin</label><input type="date" id="f_remindDate"></div>
+            <div class="field"><label>Soat</label><input type="time" id="f_remindTime" value="09:00"></div>
+          </div>
+          <div class="remind-hint" id="remindHint"></div>
+        </div>
+        <div class="cell-sub" id="remindDoneNote" hidden style="margin-top:8px"></div>
       </div>
 
       <div id="soldBlock" hidden>
@@ -885,6 +960,57 @@
         <button type="submit" class="btn primary lg" id="saveMonthBtn">Saqlash</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="overlay" id="remindAlertOverlay">
+  <div class="modal">
+    <button class="modal-close" id="closeRemindAlert">&times;</button>
+    <h2>Bildirishnoma</h2>
+    <div class="modal-sub" id="remindAlertSub"></div>
+    <div id="remindAlertList"></div>
+    <div class="form-actions">
+      <button type="button" class="btn lg" id="remindAlertClose">Yopish</button>
+      <button type="button" class="btn primary lg" id="remindAlertOpen">Bildirishnomalarni ko'rish</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="storeListOverlay">
+  <div class="modal wide">
+    <button class="modal-close" id="closeStoreListModal">&times;</button>
+    <h2>Do'kondagi telefonlar</h2>
+    <div class="modal-sub" id="storeListSub"></div>
+    <div class="sort-bar" id="storeStatusBar">
+      <span class="sort-label">Holati:</span>
+      <button class="chip active" data-ss="all">Hammasi</button>
+      <button class="chip" data-ss="stock">Sotilmagan (do'konda)</button>
+      <button class="chip" data-ss="lent">Band</button>
+    </div>
+    <div class="sort-bar" id="storeBrandBar">
+      <span class="sort-label">Turi:</span>
+      <button class="chip active" data-sb="all">Barchasi</button>
+      <button class="chip" data-sb="iphone">iPhone</button>
+      <button class="chip" data-sb="samsung">Samsung</button>
+      <button class="chip" data-sb="new">Yangi</button>
+      <button class="chip" data-sb="other">Boshqa</button>
+      <button class="chip" data-sb="gadget">Aksesuarlar</button>
+    </div>
+    <div class="sort-bar" id="storeSortBar">
+      <span class="sort-label">Saralash:</span>
+      <button class="chip active" data-so="date">Sana (yangi)</button>
+      <button class="chip" data-so="priceDesc">Narx: qimmatdan arzonga</button>
+      <button class="chip" data-so="priceAsc">Narx: arzondan qimmatga</button>
+    </div>
+    <div class="holders" id="storeHolders"></div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="storeListTable">
+          <thead><tr><th class="rownum">#</th><th>Model</th><th>Holati</th><th>Band kimda</th><th>Sotib olingan</th><th class="num">Narx</th></tr></thead>
+          <tbody id="storeListTbody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1683,6 +1809,7 @@ function doGet(e) {
   var state = {
     phones: [],
     trash: [],
+    remindFilter: "all",
     notes: "",
     sec: {
       iphone: {search:"", status:"all", gen:"all", dateFrom:"", dateTo:"", dateBy:"buy"},
@@ -3043,6 +3170,37 @@ function doGet(e) {
     var viewLabel = view.mode==="month" ? view.label : "Joriy oy";
     if(profitCard) profitCard.onclick = function(){ openSoldListModal(sold, viewLabel, "all", "all"); };
 
+    /* money in the store: unsold phones + Band phones (at what they were bought for) */
+    var storeStock = all.filter(function(p){ return p.status==="stock"; });
+    var storeLent = all.filter(function(p){ return p.status==="lent"; });
+    var sumCost = function(list){ return list.reduce(function(s,p){ return s+(p.buyPrice||0); },0); };
+    var noPrice = function(list){ return list.filter(function(p){ return p.buyPrice==null; }).length; };
+    var cardsDef = [
+      {key:"stock", label:"Do'konda (sotilmagan)", list:storeStock, cls:"", sub:" ta telefon — do'konning o'zida bo'lishi kerak"},
+      {key:"lent",  label:"Band (boshqalarda)",    list:storeLent,  cls:"gold", sub:" ta telefon — pul/telefon boshqalarda"},
+      {key:"all",   label:"Jami inventar",         list:storeStock.concat(storeLent), cls:"success", sub:" ta telefon — do'kon + Band"}
+    ];
+    document.getElementById("finStoreGrid").innerHTML = cardsDef.map(function(d){
+      var np = noPrice(d.list);
+      return '<div class="kpi type-card" data-store="'+d.key+'"><div class="kpi-label">'+esc(d.label)+'</div>'+
+        '<div class="kpi-value '+d.cls+'">'+fmtMoney(sumCost(d.list))+'</div>'+
+        '<div class="kpi-sub">'+d.list.length+esc(d.sub)+(np ? ' · '+np+' tasida narx yo\'q' : '')+'</div></div>';
+    }).join("");
+    document.querySelectorAll("#finStoreGrid [data-store]").forEach(function(c){
+      c.onclick = function(){ openStoreListModal(storeStock.concat(storeLent), c.getAttribute("data-store"), view.mode==="month" ? viewLabel : "Hozirgi holat"); };
+    });
+    var storeRows = ["iphone","samsung","new","other","gadget"].map(function(k){
+      var s = storeStock.filter(TYPE_TESTS[k]), l = storeLent.filter(TYPE_TESTS[k]);
+      return '<tr><td>'+esc(k==="new" ? "Yangi telefonlar" : (k==="gadget" ? "Aksesuarlar" : TYPE_LABELS[k]))+'</td>'+
+        '<td class="num">'+s.length+' ta · '+fmtMoney(sumCost(s))+'</td>'+
+        '<td class="num">'+l.length+' ta · '+fmtMoney(sumCost(l))+'</td>'+
+        '<td class="num">'+(s.length+l.length)+' ta · '+fmtMoney(sumCost(s)+sumCost(l))+'</td></tr>';
+    }).join("");
+    storeRows += '<tr class="total"><td>Jami</td><td class="num">'+storeStock.length+' ta · '+fmtMoney(sumCost(storeStock))+'</td>'+
+      '<td class="num">'+storeLent.length+' ta · '+fmtMoney(sumCost(storeLent))+'</td>'+
+      '<td class="num">'+(storeStock.length+storeLent.length)+' ta · '+fmtMoney(sumCost(storeStock)+sumCost(storeLent))+'</td></tr>';
+    document.getElementById("finStoreTbody").innerHTML = storeRows;
+
     function matchPhone(p, brand, cond){
       if(brand!=="all" && p.brand!==brand) return false;
       if(cond==="new") return isNewPhone(p);
@@ -3207,6 +3365,65 @@ function doGet(e) {
   document.querySelectorAll("#soldSortBar [data-sort]").forEach(function(b){
     b.addEventListener("click", function(){ soldListState.sort = b.getAttribute("data-sort"); renderSoldList(); });
   });
+  /* "Do'kondagi telefonlar": unsold + Band, filter by status / type, sort by date or price, with the total of what is shown */
+  var storeListState = {list:[], label:"", status:"all", brand:"all", sort:"date"};
+  function renderStoreList(){
+    var st = storeListState;
+    document.querySelectorAll("#storeStatusBar [data-ss]").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-ss")===st.status); });
+    document.querySelectorAll("#storeBrandBar [data-sb]").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-sb")===st.brand); });
+    document.querySelectorAll("#storeSortBar [data-so]").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-so")===st.sort); });
+    var rows = st.list.filter(function(p){
+      if(st.status!=="all" && p.status!==st.status) return false;
+      if(st.brand!=="all" && !TYPE_TESTS[st.brand](p)) return false;
+      return true;
+    });
+    rows.sort(function(a,b){
+      if(st.sort==="priceDesc" || st.sort==="priceAsc"){
+        var pa = a.buyPrice==null ? null : a.buyPrice, pb = b.buyPrice==null ? null : b.buyPrice;
+        if(pa==null && pb==null) return 0;
+        if(pa==null) return 1;
+        if(pb==null) return -1;
+        return st.sort==="priceDesc" ? pb-pa : pa-pb;
+      }
+      return String(b.buyDate||"").localeCompare(String(a.buyDate||"")) || String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+    });
+    var total = rows.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
+    var np = rows.filter(function(p){ return p.buyPrice==null; }).length;
+    var stockN = rows.filter(function(p){ return p.status==="stock"; }).length, lentN = rows.length-stockN;
+    document.getElementById("storeListSub").textContent = (st.label ? st.label+" — " : "")+rows.length+" ta telefon ("+stockN+" ta do'konda, "+lentN+" ta Band) · jami "+fmtMoney(total)+(np ? " · "+np+" tasida narx yo'q" : "");
+    /* who holds the Band phones, and how much money that is */
+    var holders = {};
+    rows.filter(function(p){ return p.status==="lent"; }).forEach(function(p){
+      var k = String(p.buyer||"").trim().toUpperCase() || "Noma'lum";
+      if(!holders[k]) holders[k] = {n:0, sum:0};
+      holders[k].n++; holders[k].sum += (p.buyPrice||0);
+    });
+    var hk = Object.keys(holders).sort(function(a,b){ return holders[b].sum-holders[a].sum; });
+    document.getElementById("storeHolders").innerHTML = hk.length ? '<span>Band kimlarda:</span>'+hk.map(function(k){
+      return '<span>'+esc(k)+' <b>'+holders[k].n+' ta · '+fmtMoney(holders[k].sum)+'</b></span>';
+    }).join("") : "";
+    document.getElementById("storeListTbody").innerHTML = rows.length ? rows.map(function(p,i){
+      return '<tr><td class="rownum">'+(i+1)+'</td>'+
+        '<td><div class="cell-model"><span class="brandtag '+esc(p.brand||"other")+'">'+esc(BRAND_LABEL[p.brand]||"")+'</span> '+esc(p.model||"Nomsiz")+'</div>'+(p.source?'<div class="cell-sub">'+esc(p.source)+'</div>':'')+'</td>'+
+        '<td><span class="badge '+(p.status==="lent"?"lent":"stock")+'">'+esc(statusLabel(p.status))+'</span></td>'+
+        '<td>'+(p.status==="lent" ? (p.buyer ? '<div class="buyer-name">'+esc(p.buyer)+'</div>'+(p.buyerPhone?'<div class="cell-sub">'+esc(p.buyerPhone)+'</div>':'') : '<span class="cell-sub">—</span>') : '<span class="cell-sub">—</span>')+'</td>'+
+        '<td>'+esc(fmtDate(p.buyDate))+'</td>'+
+        '<td class="num">'+(p.buyPrice!=null ? fmtMoney(p.buyPrice) : "—")+'</td></tr>';
+    }).join("")+'<tr class="total"><td></td><td>Jami</td><td></td><td></td><td></td><td class="num">'+fmtMoney(total)+'</td></tr>'
+      : '<tr><td colspan="6"><div class="empty-state">Bu tanlovda telefon yo\'q</div></td></tr>';
+  }
+  function openStoreListModal(list, status, label){
+    storeListState = {list:list, label:label||"", status:status||"all", brand:"all", sort:"date"};
+    renderStoreList();
+    document.getElementById("storeListOverlay").classList.add("open");
+  }
+  [["storeStatusBar","data-ss","status"],["storeBrandBar","data-sb","brand"],["storeSortBar","data-so","sort"]].forEach(function(g){
+    document.querySelectorAll("#"+g[0]+" ["+g[1]+"]").forEach(function(b){
+      b.addEventListener("click", function(){ storeListState[g[2]] = b.getAttribute(g[1]); renderStoreList(); });
+    });
+  });
+  document.getElementById("closeStoreListModal").addEventListener("click", function(){ document.getElementById("storeListOverlay").classList.remove("open"); });
+  document.getElementById("storeListOverlay").addEventListener("click", function(e){ if(e.target.id==="storeListOverlay") this.classList.remove("open"); });
   function openBoughtListModal(list, label){
     var rows = list.slice().sort(function(a,b){ return String(b.buyDate||"").localeCompare(String(a.buyDate||"")) || String(b.createdAt||"").localeCompare(String(a.createdAt||"")); });
     var total = rows.reduce(function(s,p){ return s+(p.buyPrice||0); },0);
@@ -3345,6 +3562,221 @@ function doGet(e) {
     renderMonthsList();
   }
 
+  /* ====================== Bildirishnomalar (reminders) ====================== */
+  /* A phone with remindAt (ISO time) and no remindDone is an active reminder. The text shown is the phone's ordinary comment (note).
+     Phones moved to the trash by "Yangi oy" / "To'liq tozalash" keep their reminders (a credit sale must still remind you after the monthly clean-up);
+     phones the user deleted one by one do not. */
+  function remindKey(p){ return p.id+"|"+Math.floor(Date.parse(p.remindAt)/60000); }      // by the minute: re-saving the same reminder is not a new alarm
+  function remindValid(p){ return !!(p && p.remindAt && !isNaN(Date.parse(p.remindAt))); }
+  function remindSource(){
+    return state.phones.concat((state.trash||[]).filter(function(p){ return p.deletedReason==="Yangi oy" || p.deletedReason==="To'liq tozalash"; }));
+  }
+  function remindFind(id){ return remindSource().find(function(x){ return x.id===id; }); }
+  function remindStateOf(p){
+    if(!remindValid(p)) return null;
+    if(p.remindDone) return "done";
+    var t = Date.parse(p.remindAt);
+    if(t<=Date.now()) return "due";
+    return isoLocal(new Date(t))===isoLocal(new Date()) ? "today" : "upcoming";
+  }
+  var REMIND_LABELS = {due:"Vaqti keldi", today:"Bugun", upcoming:"Kelgusi", done:"Bajarildi"};
+  function activeReminders(){ return remindSource().filter(function(p){ return remindValid(p) && !p.remindDone; }); }
+  function dueReminders(){
+    var now = Date.now();
+    return activeReminders().filter(function(p){ return Date.parse(p.remindAt)<=now; })
+      .sort(function(a,b){ return Date.parse(a.remindAt)-Date.parse(b.remindAt); });
+  }
+  function remindWhenText(p){
+    var d = new Date(p.remindAt);
+    return fmtDate(isoLocal(d))+" · "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  }
+  /* which alarms were already shown / sent this session (kept in memory too, in case the browser blocks sessionStorage) */
+  var remindMem = {ack:{}, sent:{}};
+  function remindMapGet(kind){
+    var stored = {};
+    try{ stored = JSON.parse(sessionStorage.getItem("vms_remind_"+kind)||"{}") || {}; }catch(e){}
+    return Object.assign({}, remindMem[kind], stored);
+  }
+  function remindMapSet(kind, o){
+    remindMem[kind] = o;
+    try{ sessionStorage.setItem("vms_remind_"+kind, JSON.stringify(o)); }catch(e){}
+  }
+  var lastRemindSig = "";
+  function remindSignature(){ return isoLocal(new Date())+"|"+dueReminders().map(remindKey).join(","); }
+  var notifyBroken = false;
+
+  function renderReminders(){
+    var tb = document.getElementById("tbody-reminders");
+    if(!tb) return;
+    lastRemindSig = remindSignature();
+    var all = remindSource().filter(remindValid);
+    var due = dueReminders();
+    var active = activeReminders();
+    var badge = document.getElementById("count-reminders");
+    if(badge){ badge.textContent = due.length || active.length; badge.classList.toggle("alert", due.length>0); }
+    document.title = (due.length ? "("+due.length+") " : "")+"VipMobile";
+    var banner = document.getElementById("remindBanner");
+    if(banner){
+      if(due.length){
+        banner.hidden = false;
+        banner.innerHTML = '<span>'+due.length+' ta bildirishnomaning vaqti keldi</span><button class="btn sm primary" id="remindBannerBtn">Ko\'rish</button>';
+        document.getElementById("remindBannerBtn").onclick = function(){ switchTab("reminders"); };
+      } else { banner.hidden = true; banner.innerHTML = ""; }
+    }
+    document.querySelectorAll("#remindChips .chip").forEach(function(c){ c.classList.toggle("active", c.getAttribute("data-rf")===state.remindFilter); });
+    var nb = document.getElementById("remindNotifyBtn");
+    if(nb){
+      if(!("Notification" in window)) nb.hidden = true;
+      else if(notifyBroken){ nb.hidden = false; nb.disabled = true; nb.textContent = "Bu qurilmada brauzer ogohlantirishi ishlamaydi (oyna orqali eslatiladi)"; }
+      else if(Notification.permission==="granted"){ nb.hidden = false; nb.disabled = true; nb.textContent = "Brauzer ogohlantirishi yoqilgan"; }
+      else if(Notification.permission==="denied"){ nb.hidden = true; }
+      else { nb.hidden = false; nb.disabled = false; nb.textContent = "Brauzer ogohlantirishini yoqish"; }
+    }
+    var list = all.filter(function(p){
+      var st = remindStateOf(p);
+      if(state.remindFilter==="due") return st==="due";
+      if(state.remindFilter==="upcoming") return st==="today" || st==="upcoming";
+      if(state.remindFilter==="done") return st==="done";
+      return true;
+    }).sort(function(a,b){
+      var ad = a.remindDone ? 1 : 0, bd = b.remindDone ? 1 : 0;
+      if(ad!==bd) return ad-bd;                                              // active first, finished ones at the bottom
+      if(ad) return String(b.remindDoneAt||"").localeCompare(String(a.remindDoneAt||""));
+      return Date.parse(a.remindAt)-Date.parse(b.remindAt);                  // soonest first
+    });
+    if(!list.length){ tb.innerHTML = '<tr><td colspan="5"><div class="empty-state">'+(all.length ? "Bu bo'limda bildirishnoma yo'q" : "Hali bildirishnoma qo'yilmagan")+'</div></td></tr>'; return; }
+    tb.innerHTML = list.map(function(p,i){
+      var st = remindStateOf(p);
+      var archived = p.deleted===true;
+      var actions = (archived ? '' : '<button class="btn sm ghost" data-rem-edit="'+esc(p.id)+'">Tahrir</button>')+
+        (st==="done" ? '<button class="btn sm ghost" data-rem-reopen="'+esc(p.id)+'" style="color:var(--gold)">Qayta yoqish</button>'
+                     : '<button class="btn sm ghost" data-rem-done="'+esc(p.id)+'" style="color:var(--success)">Bajarildi</button>')+
+        '<button class="btn sm ghost" data-rem-cancel="'+esc(p.id)+'" style="color:var(--danger)">Bekor qilish</button>';
+      return '<tr>'+
+        '<td class="rownum">'+(i+1)+'</td>'+
+        '<td><div class="cell-model">'+esc(remindWhenText(p))+'</div><span class="rstat '+st+'">'+REMIND_LABELS[st]+'</span></td>'+
+        '<td><div class="cell-model"><span class="brandtag '+esc(p.brand||"other")+'">'+esc(BRAND_LABEL[p.brand]||"")+'</span> '+esc(p.model||"Nomsiz")+'</div>'+
+          '<div class="cell-sub">'+esc(p.source||"")+(p.imei?(p.source?" · ":"")+esc(p.imei):"")+'</div>'+
+          (archived ? '<div class="cell-sub">Arxivlangan ('+esc(p.deletedReason)+') — axlat qutisida</div>' : '')+'</td>'+
+        '<td><div class="cell-note-text">'+(p.note ? esc(p.note) : '<span class="cell-sub">—</span>')+'</div></td>'+
+        '<td><div class="row-actions">'+actions+'</div></td></tr>';
+    }).join("");
+  }
+  async function remindUpdate(id, fields, okMsg){
+    if(!phonesCol) return;
+    try{
+      await phonesCol.doc(id).update(Object.assign({updatedAt:new Date().toISOString()}, fields));
+      if(okMsg) toast(okMsg);
+    }catch(e){ toast("Xatolik: "+(e.code||e.message), true); }
+  }
+  document.getElementById("tbody-reminders").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    var id;
+    if((id = b.getAttribute("data-rem-edit"))){
+      var p = state.phones.find(function(x){ return x.id===id; });
+      if(p) openPhoneModal(id, p.brand||"iphone");
+    } else if((id = b.getAttribute("data-rem-done"))){
+      remindUpdate(id, {remindDone:true, remindDoneAt:new Date().toISOString()}, "Bajarildi deb belgilandi");
+    } else if((id = b.getAttribute("data-rem-reopen"))){
+      remindUpdate(id, {remindDone:false, remindDoneAt:null}, "Bildirishnoma qayta yoqildi");
+    } else if((id = b.getAttribute("data-rem-cancel"))){
+      var ph = remindFind(id);
+      state.deleteId = id; confirmAction = "cancel-remind";
+      document.getElementById("confirmTitle").textContent = "Bildirishnomani bekor qilish";
+      document.getElementById("confirmText").textContent = "\""+((ph&&ph.model)||"Telefon")+"\" uchun bildirishnoma o'chiriladi. Telefonning izohi o'z joyida qoladi.";
+      setConfirmButton("Ha, bildirishnomani o'chirish", true);
+      document.getElementById("confirmOverlay").classList.add("open");
+    }
+  });
+  document.getElementById("remindChips").addEventListener("click", function(e){
+    var c = e.target.closest(".chip"); if(!c) return;
+    state.remindFilter = c.getAttribute("data-rf"); renderReminders();
+  });
+  document.getElementById("remindNotifyBtn").addEventListener("click", function(){
+    if(!("Notification" in window)) return;
+    try{
+      var r = Notification.requestPermission(function(){ renderReminders(); });        // older Safari: callback style
+      if(r && r.then) r.then(function(){ renderReminders(); });
+    }catch(e){ renderReminders(); }
+  });
+
+  /* the alarm: when a reminder's time arrives (page open) a window pops up once per session; a browser notification is sent too if allowed,
+     even when the window has to wait because a form is open */
+  function sendBrowserNotification(p){
+    try{
+      if("Notification" in window && Notification.permission==="granted" && !notifyBroken){
+        new Notification("Bildirishnoma: "+(p.model||"telefon"), {body: p.note||""});
+      }
+    }catch(e){ notifyBroken = true; renderReminders(); }                // e.g. Android Chrome only allows notifications through a service worker
+  }
+  function checkReminderAlerts(){
+    if(!state.phones.length && !(state.trash||[]).length) return;
+    var due = dueReminders();
+    if(!due.length) return;
+    var sent = remindMapGet("sent"), freshSent = due.filter(function(p){ return !sent[remindKey(p)]; });
+    if(freshSent.length){
+      freshSent.forEach(function(p){ sent[remindKey(p)] = 1; sendBrowserNotification(p); });
+      remindMapSet("sent", sent);
+    }
+    var ack = remindMapGet("ack");
+    var fresh = due.filter(function(p){ return !ack[remindKey(p)]; });
+    if(!fresh.length) return;
+    if(document.querySelector(".overlay.open")) return;           // never pop over a form that is being filled in; try again at the next check
+    fresh.forEach(function(p){ ack[remindKey(p)] = 1; });
+    remindMapSet("ack", ack);
+    document.getElementById("remindAlertSub").textContent = fresh.length+" ta bildirishnomaning vaqti keldi";
+    document.getElementById("remindAlertList").innerHTML = fresh.map(function(p){
+      return '<div class="remind-item"><div class="cell-model"><span class="brandtag '+esc(p.brand||"other")+'">'+esc(BRAND_LABEL[p.brand]||"")+'</span> '+esc(p.model||"Nomsiz")+'</div>'+
+        '<div class="cell-sub">'+esc(remindWhenText(p))+(p.source?" · "+esc(p.source):"")+'</div>'+
+        '<div class="cell-note-text" style="margin-top:6px">'+esc(p.note||"")+'</div></div>';
+    }).join("");
+    document.getElementById("remindAlertOverlay").classList.add("open");
+  }
+  function remindTick(){
+    if(remindSignature()!==lastRemindSig) renderReminders();      // a reminder's time arrived (or the day changed): refresh badge, title, banner and labels
+    checkReminderAlerts();
+  }
+  function closeRemindAlert(){ document.getElementById("remindAlertOverlay").classList.remove("open"); }
+  document.getElementById("closeRemindAlert").addEventListener("click", closeRemindAlert);
+  document.getElementById("remindAlertClose").addEventListener("click", closeRemindAlert);
+  document.getElementById("remindAlertOpen").addEventListener("click", function(){ closeRemindAlert(); switchTab("reminders"); });
+  document.getElementById("remindAlertOverlay").addEventListener("click", function(e){ if(e.target.id==="remindAlertOverlay") closeRemindAlert(); });
+  setInterval(remindTick, 30000);
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden){ renderReminders(); checkReminderAlerts(); } });
+
+  /* ---- the "Bildirishnoma qo'shish" part of the add / edit form ---- */
+  function tomorrowIso(){ var d = new Date(); d.setDate(d.getDate()+1); return isoLocal(d); }
+  var remindDoneText = "";      // set when the phone being edited has a finished reminder
+  function syncRemindUI(){
+    var on = document.getElementById("f_remindOn").checked;
+    var note = document.getElementById("f_note"), hasNote = !!note.value.trim();
+    document.getElementById("remindBox").setAttribute("data-on", on ? "1" : "0");
+    document.getElementById("remindOptions").hidden = !on;
+    if(on && !document.getElementById("f_remindDate").value) document.getElementById("f_remindDate").value = tomorrowIso();
+    document.getElementById("f_noteLabel").textContent = on ? "Izoh (bildirishnoma uchun majburiy)" : "Kichik izoh (ixtiyoriy)";
+    note.classList.toggle("need", on && !hasNote);
+    document.getElementById("remindHint").textContent = !on ? "" : (hasNote
+      ? "Bildirishnomada shu izoh ko'rsatiladi: «"+note.value.trim()+"»"
+      : "Yuqoridagi izoh maydoniga nima haqida eslatish kerakligini yozing. U shu telefonning izohi bo'lib saqlanadi va Bildirishnomalar sahifasida ko'rinadi.");
+    var dn = document.getElementById("remindDoneNote");
+    dn.hidden = on || !remindDoneText;
+    dn.textContent = remindDoneText;
+  }
+  function initRemindForm(p){
+    var on = !!(p && remindValid(p) && !p.remindDone);
+    var d = on ? new Date(p.remindAt) : null;
+    remindDoneText = (p && remindValid(p) && p.remindDone) ? "Oldingi bildirishnoma bajarilgan ("+remindWhenText(p)+"). Yangisini qo'yish uchun belgilang." : "";
+    document.getElementById("f_remindOn").checked = on;
+    document.getElementById("f_remindDate").value = d ? isoLocal(d) : "";
+    document.getElementById("f_remindTime").value = d ? String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0") : "09:00";
+    syncRemindUI();
+  }
+  document.getElementById("f_remindOn").addEventListener("change", function(){
+    syncRemindUI();
+    if(this.checked && !document.getElementById("f_note").value.trim()) document.getElementById("f_note").focus();   // the comment is required: ask for it right away
+  });
+  document.getElementById("f_note").addEventListener("input", syncRemindUI);
+
   function renderTrash(){
     var tb = document.getElementById("tbody-trash");
     if(!tb) return;
@@ -3416,18 +3848,21 @@ function doGet(e) {
   });
   function renderAll(){
     renderTrash();
+    renderReminders();
     renderDashboard();
     BRANDS.forEach(renderSection);
     VIRTUAL_BRANDS.forEach(renderSection);
     renderFinance();
+    checkReminderAlerts();
   }
 
   /* ====================== tabs ====================== */
   function switchTab(tab){
     document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===tab); });
-    ["dashboard","iphone","samsung","other","gadget","all","new","trash","finance"].forEach(function(t){
+    ["dashboard","iphone","samsung","other","gadget","all","new","reminders","trash","finance"].forEach(function(t){
       document.getElementById("tab-"+t).classList.toggle("active", t===tab);
     });
+    if(tab==="reminders") renderReminders();
     /* search boxes never keep what was typed: moving to another page empties them */
     BRANDS.concat(VIRTUAL_BRANDS).forEach(function(b){
       var s = state.sec[b];
@@ -3464,6 +3899,7 @@ function doGet(e) {
     if(Date.now()-lastActivityAt < FINANCE_IDLE_MS) return;
     try{ document.getElementById("soldListOverlay").classList.remove("open"); }catch(e){}
     try{ document.getElementById("boughtListOverlay").classList.remove("open"); }catch(e){}
+    try{ document.getElementById("storeListOverlay").classList.remove("open"); }catch(e){}
     try{ closeWipeModal(); }catch(e){}
     try{ closeMonthModal(); }catch(e){}
     if(confirmAction==="new-month"){ try{ closeConfirm(); }catch(e){} }
@@ -3619,6 +4055,7 @@ function doGet(e) {
     document.getElementById("f_sellPrice").value = p && p.sellPrice!=null ? p.sellPrice : "";
     document.getElementById("f_note").value = p ? (p.note||"") : "";
     document.getElementById("f_sellNote").value = p ? (p.sellNote||"") : "";
+    initRemindForm(p);
 
     populateIphoneModels(null);
     document.getElementById("f_ip_color").value = "";
@@ -3717,6 +4154,24 @@ function doGet(e) {
       sellNote: document.getElementById("f_sellNote").value.trim(),
       updatedAt: new Date().toISOString()
     };
+    /* Bildirishnoma: needs a date and a comment (the phone's ordinary comment, shown on the Bildirishnomalar page) */
+    var priorForRemind = state.editingId ? state.phones.find(function(x){return x.id===state.editingId;}) : null;
+    if(document.getElementById("f_remindOn").checked){
+      var rDate = document.getElementById("f_remindDate").value, rTime = document.getElementById("f_remindTime").value || "09:00";
+      if(!rDate){ toast("Bildirishnoma sanasini tanlang", true); document.getElementById("f_remindDate").focus(); return; }
+      if(!data.note){ toast("Bildirishnoma uchun izoh yozing", true); syncRemindUI(); document.getElementById("f_note").focus(); return; }
+      var remindAt = isoFromDateTime(rDate, rTime);
+      var sameMinute = priorForRemind && remindValid(priorForRemind) && Math.floor(Date.parse(priorForRemind.remindAt)/60000)===Math.floor(Date.parse(remindAt)/60000);
+      var remindChanged = !sameMinute || !!priorForRemind.remindDone;
+      if(remindChanged && Date.parse(remindAt) < Date.now()-60000){
+        toast("Bildirishnoma vaqti o'tib ketgan — kelgusi sana yoki soatni tanlang", true);
+        document.getElementById("f_remindDate").focus(); return;
+      }
+      data.remindAt = sameMinute ? priorForRemind.remindAt : remindAt;
+      if(remindChanged){ data.remindDone = false; data.remindDoneAt = null; }
+    } else if(priorForRemind && priorForRemind.remindAt && !priorForRemind.remindDone){
+      data.remindAt = null; data.remindDone = false; data.remindDoneAt = null;                 // box un-ticked: the active reminder is removed (a finished one stays as history)
+    }
     if(state.returning && data.status!=="sold") data.returnedAt = new Date().toISOString();
     if(data.status==="sold"){
       var priorForSold = state.editingId ? state.phones.find(function(x){return x.id===state.editingId;}) : null;
@@ -3806,7 +4261,7 @@ function doGet(e) {
     return segs.filter(function(s){ s = s.trim(); return s && !AUTO_NOTE_RES.some(function(re){ return re.test(s); }); }).join("; ");
   }
   document.getElementById("cleanNotesBtn").addEventListener("click", function(){
-    var hit = state.phones.concat(state.trash||[]).filter(function(p){ return hasAutoNote(p.note); });
+    var hit = state.phones.concat(state.trash||[]).filter(function(p){ return hasAutoNote(p.note) && !(remindValid(p) && !p.remindDone); });
     if(!hit.length){ toast("Dastur yozgan avtomatik izoh topilmadi"); return; }
     confirmAction = "clean-notes";
     document.getElementById("confirmTitle").textContent = "Avtomatik izohlarni tozalash";
@@ -3815,7 +4270,7 @@ function doGet(e) {
     document.getElementById("confirmOverlay").classList.add("open");
   });
   async function runCleanNotes(){
-    var hit = state.phones.concat(state.trash||[]).filter(function(p){ return hasAutoNote(p.note); });
+    var hit = state.phones.concat(state.trash||[]).filter(function(p){ return hasAutoNote(p.note) && !(remindValid(p) && !p.remindDone); });
     try{
       for(var i=0;i<hit.length;i+=400){
         var b = db.batch();
@@ -3856,7 +4311,10 @@ function doGet(e) {
     }catch(e){ toast("Qaytarishda xatolik: "+(e.code||e.message), true); }
   }
   async function doConfirm(){
-    if(confirmAction==="clean-notes"){
+    if(confirmAction==="cancel-remind"){
+      if(state.deleteId) await remindUpdate(state.deleteId, {remindAt:null, remindDone:false, remindDoneAt:null}, "Bildirishnoma bekor qilindi");
+      closeConfirm();
+    } else if(confirmAction==="clean-notes"){
       await runCleanNotes();
     } else if(confirmAction==="purge-phone"){
       if(!state.deleteId || !phonesCol) return;
@@ -4814,7 +5272,7 @@ function doGet(e) {
   document.getElementById("filenameOverlay").addEventListener("click", function(e){ if(e.target.id==="filenameOverlay"){ this.classList.remove("open"); state.pendingExport=null; } });
 
   document.addEventListener("keydown", function(e){
-    if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); closeWipeModal(); closeMonthModal(); document.getElementById("soldListOverlay").classList.remove("open"); document.getElementById("boughtListOverlay").classList.remove("open"); }
+    if(e.key==="Escape"){ closePhoneModal(); closeConfirm(); closeImportModal(); closeSoldModal(); closeWipeModal(); closeMonthModal(); document.getElementById("soldListOverlay").classList.remove("open"); document.getElementById("boughtListOverlay").classList.remove("open"); document.getElementById("remindAlertOverlay").classList.remove("open"); document.getElementById("storeListOverlay").classList.remove("open"); }
   });
 
   /* ====================== privacy: no saved passwords, no remembered search/typing history ====================== */
